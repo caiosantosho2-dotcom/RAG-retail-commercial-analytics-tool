@@ -1,0 +1,27 @@
+# Ambiente Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Segredos (nunca versionar)
+.env
+.env.*
+.streamlit/secrets.toml
+
+# Dados
+# Dados brutos do Dunnhumby ficam fora do Git (baixados via baixar_dados.py).
+# O recorte em Parquet de data/processed/ É versionado para o app publicado funcionar.
+data/raw/
+*.duckdb
+*.duckdb.wal
+
+# Logs e saídas temporárias
+logs/
+*.log
+
+# Sistema e editor
+.DS_Store
+Thumbs.db
+.vscode/
