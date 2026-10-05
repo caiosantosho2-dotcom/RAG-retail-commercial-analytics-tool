@@ -110,9 +110,35 @@ escolha de produto, não limitação.
 
 ## Comandos
 
-(preencher depois do setup: instalar, rodar ETL, rodar app, rodar avaliação
-do chatbot, rodar testes)
+Ambiente: Windows, `venv/` com Python 3.14. Rodar a partir da raiz.
+
+```
+venv\Scripts\python.exe -m pip install -r requirements.txt   # instalar
+set KAGGLE_API_TOKEN=...  (ou ~/.kaggle/kaggle.json)         # credencial, nunca no código
+venv\Scripts\python.exe baixar_dados.py                       # baixa data/raw/
+venv\Scripts\python.exe -m src.auditoria                      # relatorios/auditoria_fase1.md
+```
+
+(ETL, app, avaliação do chatbot e testes: preencher nas fases 2 a 6.)
 
 ## Decisões registradas
 
-(atualizar ao longo do projeto: data, decisão, motivo)
+- 2026-10-05 — Python 3.14 mantido; dependências do núcleo instalam. Pesadas
+  (torch, streamlit, langchain, mcp) resolvem em dry-run; instalar na fase 4.
+- 2026-10-05 — Teste de desconto usa o K validado do RFM, não força 4 segmentos.
+- 2026-10-05 — Moeda: US$ (dataset em dólar). Desconto % = (RETAIL_DISC +
+  COUPON_DISC + COUPON_MATCH_DISC) / bruto, com bruto = SALES_VALUE − descontos
+  (descontos vêm negativos; 36 linhas de RETAIL_DISC positivo, tratadas como estorno).
+- 2026-10-05 — Auditoria: sem nulos, duplicados nem órfãos; sem SALES_VALUE ou
+  QUANTITY negativos (não há devolução). Ticket médio bruto US$ 29,14.
+- 2026-10-05 — (A) Fora das métricas de venda: departamentos KIOSK-GAS, MISC SALES
+  TRAN, MISC. TRANS., COUP/STR & MFG e COMMODITY_DESC = 'COUPON/MISC ITEMS'
+  (combustível e pseudo-itens de cupom, com quantidades de até 89 mil). Ficam em
+  camada separada, com contagem por regra e reconciliação com o bruto. Itens
+  grátis (SALES_VALUE = 0 com QUANTITY > 0) permanecem: são itens reais.
+- 2026-10-05 — (B) Janela: semanas 76–101 contra 24–49. A WEEK_NO 102 tem 6 dias
+  e a 1 tem 5; a 102 sai da janela (`ignorar_semanas_finais: 1` no config).
+  Semanas começam no DAY 6, 13, ... (não coincidem com ceil(DAY/7)).
+- 2026-10-05 — Pendências para a fase 3: quanto das vendas as 226 lojas
+  like-for-like representam; `causal_data` só cobre semanas 9–101; `TRANS_TIME`
+  vem como texto; só 801 de 2.500 households têm demografia.

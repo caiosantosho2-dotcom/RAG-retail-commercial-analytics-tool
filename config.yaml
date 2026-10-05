@@ -1,0 +1,19 @@
+# Parâmetros centrais do projeto. Nada disso deve ficar espalhado no código.
+
+semente: 42
+
+dados:
+  pasta_raw: data/raw
+  pasta_processed: data/processed
+  kaggle_dataset: frtgnn/dunnhumby-the-complete-journey
+  data_base: "2016-01-01"   # DAY=1 -> data_base + 0 dias; arbitrária (o dataset não tem calendário real)
+
+janela:
+  ignorar_semanas_finais: 1 # a última WEEK_NO (102) tem só 6 dias: fica fora da janela
+  semanas_atuais: 26        # N semanas completas, terminando em max(WEEK_NO) - ignorar_semanas_finais
+  offset_ano_anterior: 52   # base de comparação: WEEK_NO - 52
+
+consulta:
+  limite_padrao: 20
+  limite_maximo: 200
+  timeout_segundos: 30
