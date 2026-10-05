@@ -13,6 +13,16 @@ janela:
   semanas_atuais: 26        # N semanas completas, terminando em max(WEEK_NO) - ignorar_semanas_finais
   offset_ano_anterior: 52   # base de comparação: WEEK_NO - 52
 
+banco:
+  arquivo: data/processed/dunnhumby.duckdb
+  relatorio_qualidade: relatorios/qualidade.md
+  tolerancia_reconciliacao_usd: 0.01
+
+limpeza:
+  # Decisão A (2026-10-05): combustível e pseudo-itens de cupom não são mercadoria.
+  departamentos_excluidos: ["KIOSK-GAS", "MISC SALES TRAN", "MISC. TRANS.", "COUP/STR & MFG"]
+  commodities_excluidas: ["COUPON/MISC ITEMS"]
+
 consulta:
   limite_padrao: 20
   limite_maximo: 200

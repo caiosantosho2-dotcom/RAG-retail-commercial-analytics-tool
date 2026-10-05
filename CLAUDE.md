@@ -117,9 +117,11 @@ venv\Scripts\python.exe -m pip install -r requirements.txt   # instalar
 set KAGGLE_API_TOKEN=...  (ou ~/.kaggle/kaggle.json)         # credencial, nunca no código
 venv\Scripts\python.exe baixar_dados.py                       # baixa data/raw/
 venv\Scripts\python.exe -m src.auditoria                      # relatorios/auditoria_fase1.md
+venv\Scripts\python.exe -m src.etl                            # ETL (~2 min): data/processed/dunnhumby.duckdb + relatorios/qualidade.md
+venv\Scripts\python.exe -m pytest tests -q                    # testes (~20 s; os da base completa pulam se o banco não existir)
 ```
 
-(ETL, app, avaliação do chatbot e testes: preencher nas fases 2 a 6.)
+(App e avaliação do chatbot: preencher nas fases 4 a 6.)
 
 ## Decisões registradas
 
@@ -142,3 +144,16 @@ venv\Scripts\python.exe -m src.auditoria                      # relatorios/audit
 - 2026-10-05 — Pendências para a fase 3: quanto das vendas as 226 lojas
   like-for-like representam; `causal_data` só cobre semanas 9–101; `TRANS_TIME`
   vem como texto; só 801 de 2.500 households têm demografia.
+- 2026-10-05 — Fase 2: valores monetários lidos como DECIMAL(18,4), não (18,2). O
+  arquivo traz ruído de ponto flutuante (ex.: 5.55E-17, 29 linhas de SALES_VALUE e 34
+  de RETAIL_DISC); em 2 casas a soma divergia US$ 0,10 do CSV e a reconciliação
+  interna não via isso. O teste contra o CSV (caminho independente) pegou. O relatório
+  registra linhas arredondadas e o efeito em US$.
+- 2026-10-05 — Fase 2: cada linha bruta cai numa só regra, por precedência (valor não
+  numérico > cesta ausente > chave/data inválida > não-mercadoria > quantidade ≤ 0);
+  o relatório mostra também as linhas afetadas por regra sem precedência.
+  Resultado: 2.595.732 brutas = 2.548.662 em fato_transacoes + 47.070 em fato_ajustes
+  (32.805 não-mercadoria + 14.265 quantidade ≤ 0). `data = data_base + (DAY − 1)`.
+- 2026-10-05 — Fase 2: banco em `data/processed/dunnhumby.duckdb` (ignorado pelo Git).
+  `causal_data` (36,8 M linhas) entra só agregada por semana e loja
+  (`causal_semana_loja`). `fato_transacoes` não carrega WEEK_NO (vem de `dim_data`).
