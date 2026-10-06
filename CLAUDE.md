@@ -119,10 +119,10 @@ venv\Scripts\python.exe baixar_dados.py                       # baixa data/raw/
 venv\Scripts\python.exe -m src.auditoria                      # relatorios/auditoria_fase1.md
 venv\Scripts\python.exe -m src.etl                            # ETL (~2 min): data/processed/dunnhumby.duckdb + relatorios/qualidade.md
 venv\Scripts\python.exe -m src.views                          # recria as views num banco existente (~10 s)
-venv\Scripts\python.exe -m pytest tests -q                    # testes (631 até a 6d; os da base completa pulam se o banco não existir)
+venv\Scripts\python.exe -m pytest tests -q                    # testes (667 até a 6e; os da base completa pulam se o banco não existir)
 # Em máquina com pouca memória (3,9 GB aqui) o suíte inteiro num só processo foi encerrado pelo sistema: rode por partes,
-# um processo cada: (1) test_cores test_cache test_graficos test_glossario test_views_sintetico test_ferramentas_formato (186)
-# (2) test_nucleo_guardrails test_carga test_agente test_etl_regras (146) (3) test_etl_base_completa
+# um processo cada: (1) test_cores test_cache test_graficos test_glossario test_views_sintetico test_ferramentas_formato test_skills_e_spec (180)
+# (2) test_nucleo_guardrails test_carga test_agente test_etl_regras (157) (3) test_etl_base_completa
 # test_views_base_completa (35) (4) test_rfm test_rfm_janelas test_rfm_base_completa (49) (5) test_clv (36) (6) test_churn (44) (7) test_teste_desconto (25)
 # (8) test_app (14), test_app_segmentos (9), test_app_clv (9), test_app_churn (10), test_app_desconto (9), um por processo
 # (9) test_mcp_server (17), test_agente_mcp (15), test_app_mcp (6), test_eval (52): sobem o servidor como subprocesso (lentos: ~1 a 3 min cada)
@@ -136,7 +136,7 @@ venv\Scripts\python.exe -m eval.rodar_avaliacao --modo vivo      # com o agente:
 
 Chave do Groq: variável `GROQ_API_KEY` (avaliação), `st.secrets["GROQ_API_KEY"]` (deploy) ou o campo da barra lateral.
 
-(O servidor MCP e a avaliação (oráculo, bloqueio e vivo) estão prontos; falta a revisão das skills e da spec na 6e.)
+(Fase 6 completa: servidor MCP, agente via MCP, avaliação (oráculo, bloqueio e vivo) e skills revisadas. Falta só rodar o modo vivo com a GROQ_API_KEY do usuário.)
 
 ## Decisões registradas
 
@@ -340,3 +340,14 @@ Chave do Groq: variável `GROQ_API_KEY` (avaliação), `st.secrets["GROQ_API_KEY
   sucesso, nada de `gsk_`/`GROQ_API_KEY=` na resposta, nada passou do limite; m05 exige dizer que não existe vendedor). Sem `GROQ_API_KEY`
   o modo vivo continua pendente: não há taxa de acerto do modelo, só do oráculo e do bloqueio. Spec corrigida (aprovada, item B): tabelas
   visíveis, `limite_aplicado`/`aviso`/`janela` e regra combinada de K.
+- 2026-10-06 — 6e (descrever_dados enxuto, aprovado pelo usuário): `descrever_dados(detalhe=None)`. Sem argumento devolve a lista curta (views e
+  tabelas com descrição de uma frase, métricas só com nome e view de origem, janela, limitações): 6,7 KB contra 20,9 KB (~2 mil tokens
+  contra ~6 mil). `detalhe="vw_x"` ou tabela traz as colunas com tipo e as métricas da view (~3 KB); `detalhe="ticket_medio"` traz
+  definição e fórmula; `detalhe="tudo"` é o catálogo completo, que o app usa uma vez para montar o prompt (o agente lê o catálogo pelo
+  servidor MCP). `detalhe` desconhecido ou de tabela interna vira `{erro, sugestao}` com as opções permitidas; o texto nunca vira SQL.
+- 2026-10-06 — 6e (skills e spec): os 3 `SKILL.md` foram reescritos a partir do que foi decidido (regra combinada de K, "Em pausa", CLV com
+  margem como premissa, churn = pausa de 8 semanas, veredito do teste de desconto, bloqueios do código, modos da avaliação) e ganharam a
+  tabela "qual ferramenta usar". `tests/test_skills_e_spec.py` (24 testes, sem banco): a spec lista exatamente as 6 ferramentas do servidor,
+  o docstring de cada uma começa pela descrição da spec (achou drift: "correção de Holm"), toda ferramenta aparece nas skills e no prompt,
+  números das skills batem com o `config.yaml` e frases já substituídas não voltam. Spec: `descrever_dados` atualizada (entrada, saída
+  curta, custo em tokens).

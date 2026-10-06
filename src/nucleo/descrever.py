@@ -5,6 +5,7 @@ no prompt do agente.
 """
 
 import fnmatch
+import unicodedata
 
 import duckdb
 
@@ -75,11 +76,21 @@ def _limitacoes(cur) -> list[str]:
     return texto
 
 
+def _primeira_frase(texto: str | None) -> str:
+    return (texto or "").split(". ")[0].rstrip(".")
+
+
+def _sem_acento(t: str) -> str:
+    return unicodedata.normalize("NFKD", t).encode("ascii", "ignore").decode().lower().strip()
+
+
 @registrar_chamada("descrever_dados")
-def descrever_dados() -> dict:
-    """Mostra as tabelas e views disponíveis, as métricas com sua definição de negócio, a janela de
-    análise, a base de comparação do ano anterior e as limitações da base. Use antes de escrever uma
-    consulta ou quando não souber qual coluna ou métrica usar.
+def descrever_dados(detalhe: str | None = None) -> dict:
+    """Mostra as tabelas e views disponíveis, as métricas, a janela de análise, a base de comparação do
+    ano anterior e as limitações da base. Use antes de escrever uma consulta ou quando não souber qual
+    coluna ou métrica usar. Sem argumento devolve a lista curta; passe em `detalhe` o nome de uma view,
+    tabela ou métrica para ver as colunas (com tipo) ou a definição e a fórmula. `detalhe="tudo"` devolve o
+    catálogo completo (cerca de 20 KB): é o que o app usa para montar o prompt, evite no meio de uma conversa.
     """
     try:
         cur = banco.cursor()
@@ -96,14 +107,34 @@ def descrever_dados() -> dict:
                 for m, d, f, v in cur.execute("SELECT metrica, definicao, formula, view_origem "
                                               "FROM metricas_definicao").fetchall()]
     janela = rastro["janela"] or {}
-    return {"views": views, "tabelas": tabelas, "metricas": metricas,
-            "janela_atual": janela.get("atual"), "janela_ano_anterior": janela.get("base"),
-            "limitacoes": _limitacoes(cur), **rastro}
+    completo = {"views": views, "tabelas": tabelas, "metricas": metricas,
+                "janela_atual": janela.get("atual"), "janela_ano_anterior": janela.get("base"),
+                "limitacoes": _limitacoes(cur), **rastro}
+    if detalhe is None:
+        return {**completo,
+                "views": [{"nome": v["nome"], "descricao": _primeira_frase(v["descricao"])} for v in views],
+                "tabelas": [{"nome": t["nome"], "descricao": t["descricao"]} for t in tabelas],
+                "metricas": [{"nome": m["nome"], "view_origem": m["view_origem"]} for m in metricas],
+                "como_ver_mais": "Chame descrever_dados(detalhe='<view, tabela ou métrica>') para ver as colunas ou a definição."}
+    pedido = _sem_acento(str(detalhe))
+    if pedido == "tudo":
+        return completo
+    base = {"janela_atual": completo["janela_atual"], "janela_ano_anterior": completo["janela_ano_anterior"], **rastro}
+    for item in views + tabelas:
+        if _sem_acento(item["nome"]) == pedido:
+            relacionadas = [m for m in metricas if m["view_origem"] == item["nome"]]
+            return {"tipo": "view" if item["nome"].startswith("vw_") else "tabela", **item, "metricas": relacionadas, **base}
+    for m in metricas:
+        if _sem_acento(m["nome"]) == pedido:
+            return {"tipo": "metrica", **m, **base}
+    nomes = [x["nome"] for x in views + tabelas] + [m["nome"] for m in metricas]
+    return {"erro": f"'{detalhe}' não é uma view, tabela ou métrica disponível.",
+            "sugestao": "Opções: " + ", ".join(nomes) + ".", **rastro}
 
 
 def catalogo_compacto() -> str:
     """Texto curto (views, colunas e janela) para o prompt do agente; economiza chamadas a descrever_dados."""
-    return compactar_catalogo(descrever_dados())
+    return compactar_catalogo(descrever_dados(detalhe="tudo"))
 
 
 def compactar_catalogo(d: dict) -> str:

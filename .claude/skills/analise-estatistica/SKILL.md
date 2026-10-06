@@ -7,6 +7,17 @@ description: Use ao construir ou interpretar as análises estatísticas deste pr
 
 Fonte das regras: `docs/spec_ferramentas_mcp.md`. Modo de trabalho: `docs/guia_boas_praticas_analise_senior.md`.
 
+## Qual ferramenta usar
+| Pergunta | Ferramenta |
+|---|---|
+| "Quem são os clientes?", "quais segmentos existem?" | `segmentar_clientes` |
+| "Quanto vale cada grupo de clientes?" | `calcular_clv` (`segmento` opcional) |
+| "Quem vai parar de comprar?", "qual segmento está em risco?" | `prever_churn` (`segmento` opcional) |
+| "Os segmentos recebem desconto diferente?" | `testar_desconto_entre_segmentos` |
+| Número pontual (vendas, ticket, loja) | `executar_consulta` (skill `consultas-sql`) |
+
+Nenhuma delas recebe SQL e nenhuma devolve a lista de households. Não reproduza a análise com SQL.
+
 ## Antes de qualquer análise
 1. Qual decisão ela apoia? Escreva em uma frase.
 2. Qual seria um resultado surpreendente? Escreva a hipótese antes de rodar.
@@ -17,39 +28,44 @@ Fonte das regras: `docs/spec_ferramentas_mcp.md`. Modo de trabalho: `docs/guia_b
 2. **CLV** — quanto cada segmento vale.
 3. **Churn** — quem vai parar de comprar.
 4. **Teste de desconto** — os segmentos recebem desconto diferente?
-Cohort é gráfico de apoio dentro do RFM. Market Basket está fora do escopo.
+Coorte de retenção é gráfico de apoio dentro do RFM. Market Basket está fora do escopo.
 
 ## Regras por análise
 **RFM + K-Means**
-- Padronize R, F e V antes do K-Means.
-- Escolha o K por silhueta e/ou cotovelo, com o gráfico. Nunca no chute.
-- Teste estabilidade com outras sementes. Reporte se os segmentos se mantêm.
-- Nomeie cada segmento olhando o perfil real. Nenhum segmento sem nome.
-- Households com valor líquido ≤ 0 ficam fora, com a contagem documentada.
+- R em dias; F e V em log1p; tudo padronizado antes do K-Means. SQL ordenado por `household_key` (o K-Means depende da ordem das linhas).
+- O K sai de uma **regra escrita antes de rodar** (`analises.rfm` no `config.yaml`): K ≥ 3, concordância entre sementes e subamostras (ARI mínima ≥ 0,90), menor segmento ≥ 5%, silhueta ≥ 0,25; vence a maior silhueta. A silhueta pura escolheria K=2, que só separa ativos de inativos. Reporte também a estabilidade.
+- Segmentos nomeados pelo perfil real: Fiéis, Regulares, Esporádicos e **Em pausa** (recência ≥ 56 dias). Nenhum segmento sem nome.
+- Households sem compra na janela (79) e com valor líquido ≤ 0 ficam fora, com a contagem documentada.
 
 **CLV**
-- Premissas explícitas: horizonte, margem assumida, método.
-- Intervalo de confiança via bootstrap.
+- Método: margem × gasto médio das últimas 26 semanas × razão (gasto nas 52 semanas seguintes ÷ gasto nas 26 anteriores) do mesmo segmento um ano antes. Households sem compra na janela formam o grupo "Sem compra na janela".
+- **Margem (25%) e horizonte (52 semanas) são premissas**, não dado da base: diga sempre.
+- IC de 95% por bootstrap. Backtest de 26 semanas disponível; o horizonte de 52 semanas não tem backtest.
+- O CLV vale como **média de grupo**, não como previsão por household (o erro individual é igual ao da regra ingênua).
 
 **Churn**
-- Defina churn com um corte explícito (sem compra em N semanas) e justifique.
-- Split **temporal**: treina num período, testa no seguinte. Nunca sorteio aleatório de linhas.
-- Compare com uma regra simples. Se o modelo não ganhar, isso é o achado.
-- Reporte AUC, precisão e recall na classe de churn, matriz de confusão. Cheque desbalanceamento.
-- Interprete os coeficientes em linguagem de negócio.
+- Churn aqui é **pausa longa**: sem compra nas próximas 8 semanas. Não é saída definitiva: cerca de 80% de quem pausa volta em 18 semanas. Não escreva "perdeu o cliente".
+- Split **temporal**: fotos de treino, uma de validação (define o limiar por F1) e duas de teste, com rótulos que não se sobrepõem. Nunca sorteio aleatório de linhas.
+- Compare sempre com a regra simples ("sem compra há k semanas"). Se o modelo não ganhar, isso é o achado.
+- Reporte AUC, AUC-PR, precisão e recall na classe de churn, matriz de confusão e calibração. A precisão por alerta é modesta (cerca de 29%): fale em "priorizar", não em "prever".
+- Coeficientes em linguagem de negócio; são associação, não causa, e os fatores são correlacionados.
+- Diga onde estão as pausas e onde está o dinheiro: não são o mesmo segmento.
 
 **Teste de desconto**
-- Cheque normalidade por grupo para justificar o teste não paramétrico.
+- Hipótese escrita antes: os segmentos recebem desconto parecido. Cheque normalidade por grupo para justificar o teste não paramétrico.
 - Kruskal-Wallis; post-hoc Mann-Whitney com Holm só se o geral for significativo.
-- Reporte tamanho de efeito (eta²) e IC das diferenças, não só p-valor.
-- Diferença entre grupos **não é** efeito causal do desconto. Escreva isso nas limitações.
+- Com ~2.400 households quase tudo é "significativo": o veredito exige também efeito (eta² ≥ 1% ou um par com ≥ 1 ponto percentual e IC fora de zero). Três vereditos: sem diferença detectável, diferença desprezível, diferença relevante.
+- Repita só com households de 5 ou mais compras: o % de desconto de quem comprou pouco é ruído. Se o veredito mudar, o resultado depende do ruído.
+- Diferença entre grupos **não é** efeito causal do desconto. Está nas limitações e precisa aparecer na resposta.
 
 ## Sempre
 - Documente cada escolha (K, teste, corte, threshold) e o motivo.
 - Feche com o bloco "e daí?": conclusão, ação recomendada, impacto estimado, limitações.
 - Título de gráfico diz a conclusão, não a descrição.
+- Números e rótulos em português (vírgula decimal, US$).
 
 ## Ao responder perguntas com as ferramentas
-- Use a ferramenta certa; não tente reproduzir a análise com SQL.
-- Comece pela conclusão do `e_dai`, depois o número, depois o método se perguntarem.
+- Comece pela conclusão do `e_dai`, depois o número, depois o método se perguntarem. Resuma o retorno: não despeje o JSON.
+- Cite as premissas que mudam o número (margem do CLV, definição de churn, janela).
 - Nunca omita as limitações quando a pergunta pedir uma recomendação.
+- Se a ferramenta devolver `erro`, diga o que falta (`sugestao`) em vez de estimar de cabeça.

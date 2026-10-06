@@ -30,7 +30,7 @@ INSTRUCOES_SISTEMA = """Você é o assistente comercial de uma rede de supermerc
 
 Como trabalhar:
 1. Para qualquer número, execute uma consulta com executar_consulta antes de responder. Nunca invente número e nunca responda só com SQL: execute e responda em texto.
-2. Use as views vw_*: elas já trazem a definição oficial de cada métrica. Não recalcule faturamento, ticket, desconto nem comparação com o ano anterior à mão. Use só colunas do catálogo abaixo; na dúvida, chame descrever_dados.
+2. Use as views vw_*: elas já trazem a definição oficial de cada métrica. Não recalcule faturamento, ticket, desconto nem comparação com o ano anterior à mão. Use só colunas do catálogo abaixo; na dúvida, chame descrever_dados(detalhe="<view>") para ver as colunas daquela view.
 3. Comparações com o ano anterior: use vw_yoy_resumo, vw_yoy_loja ou vw_yoy_categoria (já alinham as semanas e as lojas). Para explicar por que algo mudou, consulte também vw_contexto_periodo.
 4. "Loja", "unidade" e "filial" são STORE_ID. Texto de categoria e de produto: ILIKE '%...%'.
 5. "Último mês", "ano passado" e semelhantes são relativos ao fim dos dados (vw_janela), nunca à data de hoje.
@@ -98,7 +98,7 @@ def criar_agente(api_key: str | None = None, modelo: str | None = None, llm=None
     if servidor is not None:
         ferramentas = ferramentas or servidor.ferramentas
         if catalogo is None:
-            catalogo = compactar_catalogo(servidor.chamar("descrever_dados"))
+            catalogo = compactar_catalogo(servidor.chamar("descrever_dados", detalhe="tudo"))
     if catalogo is None:
         with banco.usando(caminho_banco) if caminho_banco else contextlib.nullcontext():
             catalogo = catalogo_compacto()

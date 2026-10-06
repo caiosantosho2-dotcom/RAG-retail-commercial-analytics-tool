@@ -30,7 +30,7 @@ SPEC = {
     "testar_desconto_entre_segmentos": {"normalidade_por_grupo", "kruskal_wallis", "post_hoc", "ic_diferencas", "e_dai", "versao_base"},
 }
 ANALISES = ["segmentar_clientes", "calcular_clv", "prever_churn", "testar_desconto_entre_segmentos"]
-TAMANHO_MAXIMO = {"descrever_dados": 30_000, "executar_consulta": CFG["consulta"]["max_bytes_retorno"], "segmentar_clientes": 16_000,
+TAMANHO_MAXIMO = {"descrever_dados": 8_000, "executar_consulta": CFG["consulta"]["max_bytes_retorno"], "segmentar_clientes": 16_000,
                   "calcular_clv": 16_000, "prever_churn": 16_000, "testar_desconto_entre_segmentos": 16_000}
 
 
@@ -143,3 +143,15 @@ def test_resultado_e_repetivel_com_o_cache_limpo(retornos, funcao):
     primeiro = json.dumps(funcao(), ensure_ascii=False, default=str, sort_keys=True)
     cache.limpar()
     assert json.dumps(funcao(), ensure_ascii=False, default=str, sort_keys=True) == primeiro      # semente fixa
+
+
+def test_descrever_dados_curta_cabe_em_poucos_tokens_e_detalhe_sob_pedido(retornos):
+    tam = lambda r: len(json.dumps(r, ensure_ascii=False, separators=(",", ":")).encode())
+    assert tam(retornos["ok"]["descrever_dados"]) <= 8_000                       # ~2 mil tokens (antes ~21 KB)
+    view = descrever_dados(detalhe="vw_vendas_item")
+    assert view["tipo"] == "view" and tam(view) <= 4_000 and {"nome", "tipo"} <= view["colunas"][0].keys()
+    assert any(c["nome"] == "desconto_total" for c in view["colunas"]) and view["versao_base"] == retornos["ok"]["descrever_dados"]["versao_base"]
+    metrica = descrever_dados(detalhe="ticket_medio")
+    assert metrica["tipo"] == "metrica" and metrica["definicao"] and metrica["formula"]
+    assert tam(descrever_dados(detalhe="tudo")) <= 30_000
+    assert "erro" in descrever_dados(detalhe="raw_transaction_data")                 # tabela interna não é descrita

@@ -43,11 +43,12 @@ Planilha (upload) ou data/  →  ETL + relatório de qualidade  →  DuckDB (Sta
 
 As descrições abaixo viram as docstrings. A IA escolhe a ferramenta pela descrição, então ela precisa dizer **quando usar** e **quando não usar**.
 
-### 3.1 `descrever_dados()`
-- **Descrição:** "Mostra as tabelas e views disponíveis, as métricas com sua definição de negócio, a janela de análise, a base de comparação do ano anterior e as limitações da base. Use antes de escrever uma consulta ou quando não souber qual coluna ou métrica usar."
-- **Entrada:** nenhuma.
-- **Saída:** `views` (nome, colunas, descrição), `metricas` (nome, definição de negócio, view de origem), `janela_atual`, `janela_ano_anterior`, `limitacoes`, `versao_base`.
-- **Nunca:** devolver linhas de dados.
+### 3.1 `descrever_dados(detalhe: str | None = None)`
+- **Descrição:** "Mostra as tabelas e views disponíveis, as métricas, a janela de análise, a base de comparação do ano anterior e as limitações da base. Use antes de escrever uma consulta ou quando não souber qual coluna ou métrica usar. Sem argumento devolve a lista curta; passe em `detalhe` o nome de uma view, tabela ou métrica para ver as colunas (com tipo) ou a definição e a fórmula."
+- **Entrada:** `detalhe` (opcional): nome de uma view, tabela ou métrica. `"tudo"` devolve o catálogo completo (uso do app para montar o prompt).
+- **Saída sem argumento (lista curta, ~7 KB):** `views` e `tabelas` (nome, descrição de uma frase), `metricas` (nome, view de origem), `janela_atual`, `janela_ano_anterior`, `limitacoes`, `versao_base`, `janela`. Com `detalhe` de view ou tabela: colunas com tipo e as métricas daquela view; de métrica: definição de negócio, fórmula e view de origem. Com `"tudo"` (~21 KB): views com colunas e todas as métricas com definição e fórmula.
+- **Por que curta por padrão:** o catálogo completo custa cerca de 6 mil tokens, metade do limite por minuto do plano gratuito; a lista curta custa cerca de 2 mil e o detalhe de uma view, menos de 1 mil.
+- **Nunca:** devolver linhas de dados, nem descrever tabelas fora da lista permitida (`detalhe` desconhecido vira `{erro, sugestao}` com as opções).
 
 ### 3.2 `executar_consulta(sql: str, limite: int = 20)`
 - **Descrição:** "Executa uma consulta SQL de leitura nas views e dimensões do projeto e devolve o resultado. Use para perguntas pontuais (vendas de uma loja, ticket médio, comparação com o ano anterior). Não use para segmentação, CLV, churn ou testes estatísticos: para isso existem ferramentas próprias."

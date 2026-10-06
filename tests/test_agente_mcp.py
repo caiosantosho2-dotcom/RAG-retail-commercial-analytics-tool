@@ -159,7 +159,7 @@ def test_servidor_que_nao_sobe_vira_erro_legivel_e_nao_deixa_thread(monkeypatch)
 def test_catalogo_do_agente_pelo_mcp_e_igual_ao_da_chamada_direta():
     s = ServidorMCP(caminho_banco=REAL)
     try:
-        pelo_mcp = compactar_catalogo(s.chamar("descrever_dados"))
+        pelo_mcp = compactar_catalogo(s.chamar("descrever_dados", detalhe="tudo"))
     finally:
         s.fechar()
     banco.definir_banco(REAL)

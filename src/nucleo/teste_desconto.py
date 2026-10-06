@@ -227,7 +227,7 @@ def _arredondar(o):
 
 @registrar_chamada("testar_desconto_entre_segmentos")
 def testar_desconto_entre_segmentos() -> dict:
-    """Testa se o percentual de desconto difere entre os segmentos RFM (Kruskal-Wallis e comparações par a par com Holm).
+    """Testa se o percentual de desconto difere entre os segmentos RFM (Kruskal-Wallis e comparações par a par com correção de Holm).
 
     Use para "os segmentos recebem desconto diferente?". Mostra diferença entre grupos, não efeito causal do desconto.
     """

@@ -255,24 +255,55 @@ def test_falha_ao_gravar_log_nao_derruba_a_ferramenta(tmp_path, monkeypatch):
 
 # --- descrever_dados ------------------------------------------------------------------------
 
-def test_descrever_dados_traz_catalogo_sem_linhas_de_dados():
+def test_descrever_dados_traz_lista_curta_sem_linhas_de_dados():
     d = descrever_dados()
     assert {"views", "tabelas", "metricas", "janela_atual", "janela_ano_anterior", "limitacoes",
-            "versao_base"} <= d.keys()
+            "versao_base", "como_ver_mais"} <= d.keys()
     assert "linhas" not in d and "erro" not in d
     nomes_views = {v["nome"] for v in d["views"]}
     assert {"vw_janela", "vw_vendas_item", "vw_yoy_resumo", "vw_metricas_loja_semana"} <= nomes_views
-    assert all(v["descricao"] and v["colunas"] for v in d["views"])
+    assert all(v["descricao"] and "colunas" not in v for v in d["views"])             # colunas só com detalhe
     assert {"ticket_medio", "faturamento", "like_for_like"} <= {m["nome"] for m in d["metricas"]}
+    assert all(set(m) == {"nome", "view_origem"} for m in d["metricas"])
     assert d["janela_atual"]["semanas"] == [9, 10]
     assert any("amostra_pequena" in l for l in d["limitacoes"])
 
 
 def test_descrever_dados_nao_expoe_tabelas_proibidas():
-    d = descrever_dados()
-    todas = {t["nome"] for t in d["tabelas"]} | {v["nome"] for v in d["views"]}
-    assert not any(n.startswith(("raw_", "_mat_")) or n in ("fato_ajustes", "log_cargas", "meta") for n in todas)
-    assert {"dim_loja", "dim_produto", "fato_transacoes"} <= todas
+    for d in (descrever_dados(), descrever_dados(detalhe="tudo")):
+        todas = {t["nome"] for t in d["tabelas"]} | {v["nome"] for v in d["views"]}
+        assert not any(n.startswith(("raw_", "_mat_")) or n in ("fato_ajustes", "log_cargas", "meta") for n in todas)
+        assert {"dim_loja", "dim_produto", "fato_transacoes"} <= todas
+
+
+def test_descrever_dados_tudo_traz_colunas_com_tipo_e_definicao_das_metricas():
+    d = descrever_dados(detalhe="tudo")
+    assert all(v["descricao"] and v["colunas"] and {"nome", "tipo"} <= v["colunas"][0].keys() for v in d["views"])
+    assert all({"definicao", "formula", "view_origem"} <= m.keys() for m in d["metricas"])
+
+
+def test_descrever_dados_detalhe_de_view_tabela_e_metrica():
+    v = descrever_dados(detalhe="VW_JANELA")                       # sem diferenciar maiúsculas
+    assert v["tipo"] == "view" and v["nome"] == "vw_janela" and v["colunas"] and {"nome", "tipo"} <= v["colunas"][0].keys()
+    assert v["versao_base"] == "teste123" and v["janela"]["atual"]["semanas"] == [9, 10] and "linhas" not in v
+    t = descrever_dados(detalhe="dim_loja")
+    assert t["tipo"] == "tabela" and [c["nome"] for c in t["colunas"]] == ["STORE_ID"]
+    m = descrever_dados(detalhe="Ticket Médio".replace(" ", "_").replace("é", "e"))
+    assert m["tipo"] == "metrica" and m["nome"] == "ticket_medio" and m["definicao"] and m["formula"] and m["view_origem"]
+
+
+@pytest.mark.parametrize("pedido", ["raw_transaction_data", "fato_ajustes", "meta", "nao_existe", "vw_janela; DROP TABLE dim_loja",
+                                    "' OR 1=1 --", "../../.env", ""])
+def test_descrever_dados_detalhe_desconhecido_ou_proibido_vira_erro_legivel_sem_expor_nada(pedido):
+    r = descrever_dados(detalhe=pedido)
+    assert r["erro"] and r["sugestao"].startswith("Opções: ") and "colunas" not in r and "Traceback" not in json.dumps(r)
+    assert "raw_transaction_data" not in r["sugestao"] and "fato_ajustes" not in r["sugestao"] and r["versao_base"] == "teste123"
+    assert banco.cursor().execute("SELECT COUNT(*) FROM dim_loja").fetchone()[0] == 3     # o texto nunca vira SQL
+
+
+def test_lista_curta_e_bem_menor_que_o_catalogo_completo():
+    curta, completa = len(json.dumps(descrever_dados())), len(json.dumps(descrever_dados(detalhe="tudo")))
+    assert curta < 0.6 * completa
 
 
 def test_catalogo_compacto_cabe_no_prompt():
