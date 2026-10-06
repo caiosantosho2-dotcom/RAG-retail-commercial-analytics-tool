@@ -44,7 +44,7 @@ def filhos(aba):
 @precisa_do_banco
 def test_a_aba_abre_sem_erro_com_tres_abas_e_o_chat_primeiro(tela_real):
     assert not tela_real.exception and not tela_real.error
-    assert [t.label for t in tela_real.tabs] == ["Chat", "Segmentos (RFM)", "Valor do cliente (CLV)", "Risco de pausa (churn)", "Dados e qualidade"]
+    assert [t.label for t in tela_real.tabs] == ["Chat", "Segmentos (RFM)", "Valor do cliente (CLV)", "Risco de pausa (churn)", "Desconto por segmento", "Dados e qualidade"]
     assert len(tela_real.chat_input) == 1
 
 

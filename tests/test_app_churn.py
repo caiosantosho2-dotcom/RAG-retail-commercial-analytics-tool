@@ -15,7 +15,7 @@ CARREGAR_ORIGINAL = carga.carregar    # guardada na importação: o fixture do m
 APP = str(Path(__file__).resolve().parent.parent / "app" / "app.py")
 BANCO = RAIZ / CFG["banco"]["arquivo"]
 precisa_do_banco = pytest.mark.skipif(not BANCO.exists(), reason="rode `python -m src.etl`")
-ABAS = ["Chat", "Segmentos (RFM)", "Valor do cliente (CLV)", "Risco de pausa (churn)", "Dados e qualidade"]
+ABAS = ["Chat", "Segmentos (RFM)", "Valor do cliente (CLV)", "Risco de pausa (churn)", "Desconto por segmento", "Dados e qualidade"]
 
 
 def resultado_real():

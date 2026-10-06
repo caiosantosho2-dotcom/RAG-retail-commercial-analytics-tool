@@ -15,7 +15,7 @@ from src import agente, carga, qualidade  # noqa: E402
 from src.config import CFG  # noqa: E402
 from src.etl import ErroCarga  # noqa: E402
 from src.token_counter import LIMITES_REFERENCIA_TPM, ContadorTokens  # noqa: E402
-from src.ui import aba_churn, aba_clv, aba_segmentos  # noqa: E402
+from src.ui import aba_churn, aba_clv, aba_desconto, aba_segmentos  # noqa: E402
 
 EXEMPLOS = [
     "Qual loja teve o maior ticket médio nas últimas 4 semanas?",
@@ -225,8 +225,8 @@ def main():
         st.session_state.autocarga_tentada = True
         _carregar_dados(silencioso=True)
     chave, modelo = _barra_lateral()
-    aba_chat, aba_segmentos_, aba_clv_, aba_churn_, aba_dados = st.tabs(
-        ["Chat", "Segmentos (RFM)", "Valor do cliente (CLV)", "Risco de pausa (churn)", "Dados e qualidade"])
+    aba_chat, aba_segmentos_, aba_clv_, aba_churn_, aba_desconto_, aba_dados = st.tabs(
+        ["Chat", "Segmentos (RFM)", "Valor do cliente (CLV)", "Risco de pausa (churn)", "Desconto por segmento", "Dados e qualidade"])
     with aba_chat:
         _aba_chat(chave, modelo)
     with aba_segmentos_:
@@ -244,6 +244,11 @@ def main():
             st.info("Carregue os dados na aba Chat para ver o risco de pausa.")
         else:
             aba_churn.renderizar(st.session_state.carga.caminho_banco)
+    with aba_desconto_:
+        if st.session_state.carga is None:
+            st.info("Carregue os dados na aba Chat para ver o desconto por segmento.")
+        else:
+            aba_desconto.renderizar(st.session_state.carga.caminho_banco)
     with aba_dados:
         _aba_dados()
 

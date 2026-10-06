@@ -56,11 +56,11 @@ def _milhar(n: int) -> str:
 
 # --------------------------------------------------------------------------- dados
 
-COLUNAS_BASE = ["household_key", "recencia_dias", "frequencia", "valor", "ticket_medio", "pct_desconto", "tem_demografia"]
+COLUNAS_BASE = ["household_key", "recencia_dias", "frequencia", "valor", "ticket_medio", "pct_desconto", "desconto_total", "valor_bruto", "tem_demografia"]
 
 
 def _finalizar_base(cur, df: pd.DataFrame, janela: str) -> tuple[pd.DataFrame, list[dict]]:
-    for coluna in ("recencia_dias", "frequencia", "valor", "ticket_medio", "pct_desconto"):
+    for coluna in ("recencia_dias", "frequencia", "valor", "ticket_medio", "pct_desconto", "desconto_total", "valor_bruto"):
         df[coluna] = df[coluna].astype(float)
     total = cur.execute("SELECT COUNT(*) FROM dim_household").fetchone()[0]
     sem_compra = total - len(df)
@@ -93,7 +93,8 @@ def base_rfm(cur, semana_ini: int, semana_fim: int) -> tuple[pd.DataFrame, list[
               FROM vw_cliente_semana WHERE WEEK_NO BETWEEN ? AND ? GROUP BY household_key)
         SELECT s.household_key, date_diff('day', s.ultima, fim.data_fim) AS recencia_dias, s.frequencia, s.valor,
                CAST(s.valor AS DOUBLE) / NULLIF(s.frequencia, 0) AS ticket_medio,
-               100.0 * CAST(s.desconto AS DOUBLE) / NULLIF(CAST(s.bruto AS DOUBLE), 0) AS pct_desconto, h.tem_demografia
+               100.0 * CAST(s.desconto AS DOUBLE) / NULLIF(CAST(s.bruto AS DOUBLE), 0) AS pct_desconto,
+               s.desconto AS desconto_total, s.bruto AS valor_bruto, h.tem_demografia
         FROM s CROSS JOIN fim LEFT JOIN dim_household h ON h.household_key = s.household_key
         ORDER BY s.household_key""", [semana_fim, semana_ini, semana_fim]).df()
     return _finalizar_base(cur, df, f"{semana_ini}-{semana_fim}")
@@ -181,9 +182,9 @@ def montar_perfil(df: pd.DataFrame, rotulos: np.ndarray) -> pd.DataFrame:
                    ticket_medio_usd=("ticket_medio", "mean"), valor_total=("valor", "sum"))
     perfil["pct_households"] = perfil["households"] / len(df) * 100
     perfil["pct_faturamento"] = perfil["valor_total"] / df["valor"].sum() * 100
-    desconto = df.assign(seg=rotulos).groupby("seg").apply(
-        lambda t: float((t["pct_desconto"] * t["valor"]).sum() / t["valor"].sum()), include_groups=False)
-    perfil["desconto_medio_pct"] = desconto
+    # Definição oficial (views.METRICAS): 100 * soma do desconto / soma do valor bruto, não a média ponderada pelo líquido.
+    soma = df.assign(seg=rotulos).groupby("seg")[["desconto_total", "valor_bruto"]].sum()
+    perfil["desconto_medio_pct"] = 100 * soma["desconto_total"] / soma["valor_bruto"]
     return perfil
 
 

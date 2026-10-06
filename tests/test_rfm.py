@@ -114,11 +114,12 @@ def test_nomes_invalidos_sao_recusados(nomes, k):
         validar_nomes(nomes, k)
 
 
-def test_desconto_do_segmento_e_ponderado_pelo_valor():
+def test_desconto_do_segmento_segue_a_definicao_oficial_soma_do_desconto_sobre_soma_do_bruto():
     df = pd.DataFrame({"recencia_dias": [1, 1], "frequencia": [1, 1], "valor": [100.0, 300.0], "ticket_medio": [1.0, 1.0],
-                       "pct_desconto": [10.0, 20.0]})
+                       "pct_desconto": [10.0, 20.0], "desconto_total": [11.11, 75.0], "valor_bruto": [111.11, 375.0]})
     p = montar_perfil(df, np.array([0, 0]))
-    assert p.loc[0, "desconto_medio_pct"] == pytest.approx(17.5)     # (10*100 + 20*300) / 400
+    assert p.loc[0, "desconto_medio_pct"] == pytest.approx(100 * (11.11 + 75.0) / (111.11 + 375.0))   # 17,70%, e não 17,5% (pelo líquido)
+    assert p.loc[0, "desconto_medio_pct"] != pytest.approx(17.5, abs=0.05)
 
 
 # --- bloco "e daí?" --------------------------------------------------------------------------------------
@@ -152,7 +153,7 @@ def ambiente(tmp_path_factory):
     mp = pytest.MonkeyPatch()
     mp.setattr(log, "CAMINHO", pasta / "chamadas.jsonl")
     extras = [dict(household_key=10_000, segmento_plantado="x", recencia_dias=5, frequencia=1, valor=0.0, ticket_medio=0.0,
-                   pct_desconto=0.0, tem_demografia=False)]
+                   pct_desconto=0.0, desconto_total=0.0, valor_bruto=0.0, tem_demografia=False)]
     banco.definir_banco(sc.criar_banco(pasta / "a.duckdb", extras=extras))
     cache.limpar()
     yield pasta

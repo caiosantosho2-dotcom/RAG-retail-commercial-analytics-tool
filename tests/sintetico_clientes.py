@@ -28,9 +28,12 @@ def gerar_clientes(semente: int = 7) -> pd.DataFrame:
         f = np.maximum(1, np.expm1(rng.normal(*p["f"], n)).round())
         v = np.maximum(1.0, np.expm1(rng.normal(*p["v"], n))).round(2)
         for i in range(n):
+            pct = float(np.clip(rng.normal(15.5, 5), 0, 60))
+            bruto = float(v[i]) / (1 - pct / 100)
             linhas.append({"household_key": h, "segmento_plantado": nome, "recencia_dias": int(r[i]),
                            "frequencia": int(f[i]), "valor": float(v[i]), "ticket_medio": float(v[i] / f[i]),
-                           "pct_desconto": float(np.clip(rng.normal(15.5, 5), 0, 60)), "tem_demografia": bool(i % 3 == 0)})
+                           "pct_desconto": pct, "desconto_total": bruto - float(v[i]), "valor_bruto": bruto,
+                           "tem_demografia": bool(i % 3 == 0)})
             h += 1
     return pd.DataFrame(linhas)
 
@@ -43,7 +46,7 @@ def criar_banco(destino: Path, clientes: pd.DataFrame | None = None, sem_compra:
     ordem = clientes.sample(frac=1, random_state=3) if embaralhar else clientes
     c = duckdb.connect(str(destino))
     c.register("df", ordem.assign(periodo="atual")[["household_key", "periodo", "recencia_dias", "frequencia", "valor",
-                                                      "ticket_medio", "pct_desconto", "tem_demografia"]])
+                                                      "ticket_medio", "pct_desconto", "desconto_total", "valor_bruto", "tem_demografia"]])
     c.execute("CREATE TABLE vw_metricas_cliente AS SELECT * FROM df")
     todos = list(clientes["household_key"]) + [int(clientes["household_key"].max()) + 1 + i for i in range(sem_compra)]
     c.execute("CREATE TABLE dim_household AS SELECT * FROM (VALUES " + ",".join(f"({h}, TRUE)" for h in todos)

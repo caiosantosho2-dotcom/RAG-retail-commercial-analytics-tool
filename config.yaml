@@ -84,6 +84,16 @@ analises:
     l2_c: 1.0                      # logística com regularização L2, sem peso de classe (probabilidades calibradas)
     n_bootstrap: 500
     nivel_ic: 0.95
+  teste_desconto:
+    # Hipótese (escrita antes de rodar): os segmentos recebem desconto parecido. Kruskal-Wallis porque o % de desconto por
+    # household é assimétrico e não normal em todos os grupos (Shapiro); post-hoc de Mann-Whitney com Holm só se o geral
+    # for significativo. Significância sozinha não basta com ~2.400 households: o veredito exige também efeito.
+    alfa: 0.05
+    eta2_relevante: 0.01              # efeito relevante: eta² (Kruskal-Wallis) a partir de 1% da variação ...
+    diferenca_relevante_pp: 1.0       # ... ou algum par com diferença de medianas >= 1 ponto percentual e IC que exclui zero
+    compras_minimas_sensibilidade: 5  # repete o teste só com households de pelo menos 5 compras (o % de desconto é ruidoso com poucas)
+    n_bootstrap: 2000
+    nivel_ic: 0.95
   coorte:
     # A entrada no painel acontece nas semanas 1-20 (99,2% dos households) e quase nada depois: com blocos de
     # 8 semanas só 2 coortes teriam tamanho útil, com 4 semanas há 5. Entrada no painel não é cliente novo.

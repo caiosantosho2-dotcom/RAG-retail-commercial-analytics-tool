@@ -119,12 +119,12 @@ venv\Scripts\python.exe baixar_dados.py                       # baixa data/raw/
 venv\Scripts\python.exe -m src.auditoria                      # relatorios/auditoria_fase1.md
 venv\Scripts\python.exe -m src.etl                            # ETL (~2 min): data/processed/dunnhumby.duckdb + relatorios/qualidade.md
 venv\Scripts\python.exe -m src.views                          # recria as views num banco existente (~10 s)
-venv\Scripts\python.exe -m pytest tests -q                    # testes (488 até a 5c; os da base completa pulam se o banco não existir)
+venv\Scripts\python.exe -m pytest tests -q                    # testes (532 até a 5d; os da base completa pulam se o banco não existir)
 # Em máquina com pouca memória (3,9 GB aqui) o suíte inteiro num só processo foi encerrado pelo sistema: rode por partes,
-# um processo cada: (1) test_cores test_cache test_graficos test_glossario test_eval test_views_sintetico (136)
+# um processo cada: (1) test_cores test_cache test_graficos test_glossario test_eval test_views_sintetico (146)
 # (2) test_nucleo_guardrails test_carga test_agente test_etl_regras (146) (3) test_etl_base_completa
-# test_views_base_completa (35) (4) test_rfm test_rfm_janelas test_rfm_base_completa (49) (5) test_clv (36) (6) test_churn (44)
-# (7) test_app (14), test_app_segmentos (9), test_app_clv (9), test_app_churn (10), um por processo
+# test_views_base_completa (35) (4) test_rfm test_rfm_janelas test_rfm_base_completa (49) (5) test_clv (36) (6) test_churn (44) (7) test_teste_desconto (25)
+# (8) test_app (14), test_app_segmentos (9), test_app_clv (9), test_app_churn (10), test_app_desconto (9), um por processo
 venv\Scripts\python.exe -m streamlit run app/app.py           # app (carrega data/ ou data/raw/ sozinho; upload tem prioridade)
 venv\Scripts\python.exe -m eval.rodar_avaliacao --modo oraculo   # sem LLM: SQL esperado + glossário (eval/ULTIMO_ORACULO.md)
 set GROQ_API_KEY=...                                          # no SEU terminal; nunca colar a chave na conversa
@@ -292,3 +292,18 @@ Chave do Groq: variável `GROQ_API_KEY` (avaliação), `st.secrets["GROQ_API_KEY
   o Streamlit não expõe o locale). Texto: nunca usar `.replace(",", ".")` em frase inteira para formatar milhar (troca
   também a vírgula decimal): formatar o milhar à parte. No painel sintético as 5 variáveis são quase colineares
   (correlação até 0,96), então só a dominante tem sinal garantido nos testes; os 5 sinais são testados na base real.
+- 2026-10-06 — 5d (aprovadas A-C): hipótese escrita antes de rodar: os segmentos recebem desconto parecido. Kruskal-Wallis (Shapiro
+  rejeita normalidade nos 4 grupos), post-hoc Mann-Whitney + Holm só se o geral for significativo, IC bootstrap das diferenças de
+  mediana (2.000 reamostras, semente fixa, sem ajuste de Holm, dito na aba). As 3 funções estatísticas estão em
+  `src/teste_hipotese.py`, cópia sem alteração da referência (um teste compara o código-fonte). Parâmetros em `analises.teste_desconto`.
+- 2026-10-06 — 5d (veredito): significância não basta com ~2.400 households. Três vereditos: sem diferença detectável (p >= 0,05),
+  diferença desprezível (significativa, mas eta² < 1% e nenhum par com >= 1 pp e IC fora de zero) e diferença relevante. Resultado:
+  KW H = 11,68, p = 0,0085, eta² = 0,0036 (0,4% da variação) -> **desprezível**; maior diferença de mediana 1,25 pp (Regulares x
+  Em pausa) com IC que inclui zero; só Esporádicos x Regulares passa no Holm (0,89 pp). Sensibilidade com >= 5 compras (2.138
+  households): p = 0,52, eta² ~ 0 -> a significância vinha do ruído de medir desconto em poucas compras (Esporádicos e Em pausa têm
+  desvio-padrão de 8 a 9 pp contra 4,9 nos Fiéis).
+- 2026-10-06 — 5d (consistência com a 5a): o "desconto médio" por segmento da aba RFM passou a seguir a definição oficial (soma do
+  desconto / soma do valor bruto; `carregar_base` e `base_rfm` trazem `desconto_total` e `valor_bruto`), em vez da média do % por
+  household ponderada pelo líquido. Taxas ponderadas por segmento agora: Fiéis 15,5%, Regulares 16,2%, Esporádicos 16,7%, Em pausa
+  16,2% (taxa geral 15,7%). Impacto: igualar todos à menor taxa cortaria US$ 5,6 mil (1,4%) dos US$ 400 mil de desconto, supondo
+  demanda constante. Fora do escopo (D, não aprovado): separar desconto de loja e de cupom por segmento.

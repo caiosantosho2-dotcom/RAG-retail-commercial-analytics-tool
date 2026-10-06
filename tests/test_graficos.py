@@ -362,6 +362,74 @@ def test_eixos_numericos_com_decimal_ou_milhar_usam_o_formato_brasileiro():
         assert "replace(replace(replace(format(datum.value" in json.dumps(espec(construir())), nome
 
 
+# --- teste de desconto entre segmentos ---------------------------------------------------------------------------
+
+def grupos_desconto(medianas=(14.97, 15.38, 14.49, 14.13), n=(857, 980, 426, 158)):
+    nomes = ("Fiéis", "Regulares", "Esporádicos", "Em pausa")
+    return [{"segmento": s, "households": h, "mediana_pct": m, "q25_pct": m - 3, "q75_pct": m + 4, "bigode_inf_pct": m - 10, "bigode_sup_pct": m + 12,
+             "desvio_padrao_pp": 5.0 + i, "taxa_ponderada_pct": m + 0.5} for i, (s, h, m) in enumerate(zip(nomes, n, medianas))]
+
+
+def ics_desconto(excluem=False):
+    pares = [("Fiéis", "Regulares", -0.41, -1.06, 0.16), ("Fiéis", "Esporádicos", 0.48, -0.52, 1.79), ("Fiéis", "Em pausa", 0.84, -0.79, 2.30),
+             ("Regulares", "Esporádicos", 0.89, -0.15, 2.19), ("Regulares", "Em pausa", 1.25, -0.43, 2.67), ("Esporádicos", "Em pausa", 0.36, -1.73, 1.92)]
+    return [{"grupo_1": a, "grupo_2": b, "diferenca_mediana_pp": d, "ic_inferior": lo + (1.0 if excluem else 0), "ic_superior": hi, "exclui_zero": excluem and lo + 1.0 > 0}
+            for a, b, d, lo, hi in pares]
+
+
+@pytest.mark.parametrize("modo", ["claro", "escuro"])
+@pytest.mark.parametrize("construir", [
+    lambda m: graficos.grafico_distribuicao(grupos_desconto(), "diferenca_desprezivel", 15.7, m),
+    lambda m: graficos.grafico_pares(ics_desconto(), 1.0, m),
+    lambda m: graficos.grafico_sensibilidade(grupos_desconto(), grupos_desconto((14.97, 15.39, 15.19, 15.08), (857, 979, 257, 45)), 5, 0.52,
+                                             "sem_diferenca_detectavel", m)])
+def test_graficos_do_desconto_so_usam_cores_da_paleta_e_grade_solida(construir, modo):
+    spec = espec(construir(modo))
+    assert hexes(spec) <= permitidos(modo) and "strokeDash" not in json.dumps(spec)
+    assert spec["config"]["view"]["stroke"] is None
+
+
+def test_titulos_do_desconto_dizem_a_conclusao_conforme_o_veredito():
+    g = grupos_desconto()
+    assert graficos.titulo_distribuicao(g, "diferenca_desprezivel") == "Os segmentos recebem desconto praticamente igual: medianas de 14,1% a 15,4%"
+    assert graficos.titulo_distribuicao(g, "diferenca_relevante").startswith("Os segmentos recebem desconto diferente")
+    assert graficos.titulo_pares(ics_desconto()) == ("Nenhum dos 6 pares tem diferença de mediana distinguível de zero; a maior, "
+                                                     "Regulares − Em pausa, é 1,2 pp")
+    assert graficos.titulo_pares(ics_desconto(excluem=True)).startswith("4 de 6 pares têm diferença de mediana distinguível de zero")
+    sens = grupos_desconto((14.97, 15.39, 15.19, 15.08))
+    assert graficos.titulo_sensibilidade(sens, 5, 0.5225, "sem_diferenca_detectavel") == (
+        "Só com quem comprou 5+ vezes, as medianas ficam entre 15,0% e 15,4% e a diferença deixa de ser significativa (p = 0,52)")
+    assert graficos.titulo_sensibilidade(sens, 5, 0.0004, "diferenca_desprezivel").endswith("(p < 0,001)")
+
+
+def test_distribuicao_uma_cor_tooltip_completo_e_referencia_da_taxa_geral():
+    spec = espec(graficos.grafico_distribuicao(grupos_desconto(), "diferenca_desprezivel", 15.7, "claro"))
+    caixa = next(c for c in spec["layer"] if c["mark"]["type"] == "bar")
+    assert caixa["mark"]["color"] == cores.DESTAQUE["claro"] and "color" not in caixa["encoding"] and len(caixa["encoding"]["tooltip"]) == 7
+    assert "taxa geral 15,7%" in json.dumps(spec, ensure_ascii=False)
+    assert graficos.tabela_distribuicao(grupos_desconto()).shape == (4, 9)
+
+
+def test_pares_tem_zero_faixa_de_relevancia_e_ordem_pelo_tamanho_da_diferenca():
+    df = graficos.tabela_pares(ics_desconto())
+    assert list(df["par"])[0] == "Regulares − Em pausa" and list(df["diferenca_mediana_pp"].abs()) == sorted(df["diferenca_mediana_pp"].abs(), reverse=True)
+    spec = espec(graficos.grafico_pares(ics_desconto(), 1.0, "claro"))
+    tipos = [c["mark"]["type"] for c in spec["layer"]]
+    assert tipos.count("rect") == 1 and tipos.count("rule") >= 2 and "point" in tipos
+    faixa = next(c for c in spec["layer"] if c["mark"]["type"] == "rect")
+    assert spec["datasets"][faixa["data"]["name"]][0] == {"a": -1.0, "b": 1.0}
+
+
+def test_sensibilidade_duas_series_com_legenda_e_tabela_com_as_duas():
+    g, s = grupos_desconto(), grupos_desconto((14.97, 15.39, 15.19, 15.08), (857, 979, 257, 45))
+    df = graficos.tabela_sensibilidade(g, s, 5)
+    assert sorted(df["serie"].unique()) == ["Só quem tem 5 ou mais compras", "Todos os households"] and len(df) == 8
+    spec = espec(graficos.grafico_sensibilidade(g, s, 5, 0.52, "sem_diferenca_detectavel", "claro"))
+    pontos = [c for c in spec["layer"] if c["mark"]["type"] == "point"]
+    assert len(pontos) == 2 and all(p["encoding"]["color"]["legend"] is not None for p in pontos)
+    assert pontos[0]["encoding"]["color"]["scale"]["range"] == [cores.CINZA["claro"], cores.DESTAQUE["claro"]]
+
+
 def test_tabela_gemea_da_coorte_tem_uma_linha_por_celula():
     df = graficos.tabela_coorte(coortes())
     assert len(df) == 6 + 5 and set(df.columns) >= {"coorte", "households", "bloco_depois_da_entrada", "pct"}

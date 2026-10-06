@@ -40,7 +40,7 @@ def filhos(aba):
 @precisa_do_banco
 def test_a_aba_abre_sem_erro_na_quarta_posicao_do_menu(tela_real):
     assert not tela_real.exception and not tela_real.error
-    assert [t.label for t in tela_real.tabs] == ["Chat", "Segmentos (RFM)", "Valor do cliente (CLV)", "Risco de pausa (churn)", "Dados e qualidade"]
+    assert [t.label for t in tela_real.tabs] == ["Chat", "Segmentos (RFM)", "Valor do cliente (CLV)", "Risco de pausa (churn)", "Desconto por segmento", "Dados e qualidade"]
 
 
 @precisa_do_banco

@@ -65,6 +65,6 @@ def criar_banco(destino: Path, semente: int = 11, ultima_semana: int = SEMANAS) 
         partes.append(df.assign(periodo=periodo))
     c.register("metricas_df", pd.concat(partes, ignore_index=True))
     c.execute("CREATE TABLE vw_metricas_cliente AS SELECT household_key, periodo, recencia_dias, frequencia, valor, ticket_medio, "
-              "pct_desconto, tem_demografia FROM metricas_df")
+              "pct_desconto, desconto_total, valor_bruto, tem_demografia FROM metricas_df")
     c.close()
     return destino, semanal, hh

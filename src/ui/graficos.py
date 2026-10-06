@@ -403,3 +403,133 @@ def grafico_fatores(fatores: list[dict], modo: str):
     rotulos = alt.Chart(df).mark_text(align="left", dx=10, fontSize=12, fontWeight=600).encode(y=y, x="odds_ratio_por_dp:Q", text="rotulo:N")
     grafico = alt.layer(referencia, pontos, rotulos).properties(title=titulo_fatores(fatores), height=46 * len(df) + 40, width="container")
     return _base(grafico, modo)
+
+
+# --------------------------------------------------------------------------- teste de desconto entre segmentos
+
+def tabela_distribuicao(grupos: list[dict]) -> pd.DataFrame:
+    return pd.DataFrame([{"segmento": g["segmento"], "households": g["households"], "mediana_pct": g["mediana_pct"], "q25_pct": g["q25_pct"],
+                          "q75_pct": g["q75_pct"], "bigode_inf_pct": g["bigode_inf_pct"], "bigode_sup_pct": g["bigode_sup_pct"],
+                          "desvio_padrao_pp": g["desvio_padrao_pp"], "taxa_ponderada_pct": g["taxa_ponderada_pct"]} for g in grupos])
+
+
+def titulo_distribuicao(grupos: list[dict], veredito: str) -> str:
+    lo, hi = min(g["mediana_pct"] for g in grupos), max(g["mediana_pct"] for g in grupos)
+    faixa = f"medianas de {_pt(lo, 1)}% a {_pt(hi, 1)}%"
+    if veredito == "diferenca_relevante":
+        return f"Os segmentos recebem desconto diferente: {faixa}"
+    return f"Os segmentos recebem desconto praticamente igual: {faixa}"
+
+
+def grafico_distribuicao(grupos: list[dict], veredito: str, taxa_geral: float, modo: str):
+    df = tabela_distribuicao(grupos)
+    ordem = list(df["segmento"])
+    sup, tinta = cores.SUPERFICIE[modo], cores.TINTA[modo]
+    y = alt.Y("segmento:N", sort=ordem, title=None, axis=alt.Axis(labelLimit=240, labelColor=tinta["secundaria"], ticks=False))
+    escala = alt.Scale(domain=[0, math.ceil(df["bigode_sup_pct"].max() * 1.1 / 5) * 5])
+    x_titulo = "% de desconto do household (caixa = 50% central, risco claro = mediana)"
+    tooltip = [alt.Tooltip("segmento:N", title="Segmento"), alt.Tooltip("households:Q", title="Households", format=","),
+               alt.Tooltip("mediana_pct:Q", title="Mediana (%)", format=".1f"), alt.Tooltip("q25_pct:Q", title="25% (%)", format=".1f"),
+               alt.Tooltip("q75_pct:Q", title="75% (%)", format=".1f"), alt.Tooltip("desvio_padrao_pp:Q", title="Desvio-padrão (pp)", format=".1f"),
+               alt.Tooltip("taxa_ponderada_pct:Q", title="Taxa ponderada (%)", format=".1f")]
+    bigode = alt.Chart(df).mark_rule(strokeWidth=2, color=tinta["base"]).encode(
+        y=y, x=alt.X("bigode_inf_pct:Q", scale=escala, title=x_titulo, axis=_eixo_pt(".0f", tickCount=6)), x2="bigode_sup_pct:Q")
+    caixa = alt.Chart(df).mark_bar(cornerRadius=4, size=22, color=cores.DESTAQUE[modo], stroke=sup, strokeWidth=2).encode(
+        y=y, x=alt.X("q25_pct:Q", scale=escala), x2="q75_pct:Q", tooltip=tooltip)
+    mediana = alt.Chart(df).mark_tick(color=sup, thickness=3, size=22).encode(y=y, x=alt.X("mediana_pct:Q", scale=escala))
+    regua = alt.Chart(pd.DataFrame({"x": [taxa_geral], "t": [f"taxa geral {_pt(taxa_geral, 1)}%"]}))
+    linha = regua.mark_rule(color=tinta["muda"], strokeWidth=1).encode(x=alt.X("x:Q", scale=escala))
+    nome = regua.mark_text(align="left", dx=5, dy=-4, fontSize=11, color=tinta["muda"]).encode(
+        x=alt.X("x:Q", scale=escala), y=alt.value(8), text="t:N")
+    grafico = alt.layer(bigode, linha, nome, caixa, mediana).properties(
+        title=titulo_distribuicao(grupos, veredito), height=56 * len(df) + 30, width="container")
+    return _base(grafico, modo)
+
+
+def tabela_pares(ics: list[dict]) -> pd.DataFrame:
+    df = pd.DataFrame([{"par": f"{i['grupo_1']} − {i['grupo_2']}", "diferenca_mediana_pp": i["diferenca_mediana_pp"], "ic_inferior_pp": i["ic_inferior"],
+                        "ic_superior_pp": i["ic_superior"], "ic_exclui_zero": i["exclui_zero"]} for i in ics])
+    return df.reindex(df["diferenca_mediana_pp"].abs().sort_values(ascending=False).index).reset_index(drop=True)
+
+
+def titulo_pares(ics: list[dict]) -> str:
+    df = tabela_pares(ics)
+    n_zero = int(df["ic_exclui_zero"].sum())
+    maior = df.iloc[0]
+    if n_zero == 0:
+        return (f"Nenhum dos {len(df)} pares tem diferença de mediana distinguível de zero; a maior, {maior['par']}, "
+                f"é {_pt(abs(maior['diferenca_mediana_pp']), 1)} pp")
+    return (f"{n_zero} de {len(df)} pares têm diferença de mediana distinguível de zero; a maior, {maior['par']}, "
+            f"é {_pt(abs(maior['diferenca_mediana_pp']), 1)} pp")
+
+
+def grafico_pares(ics: list[dict], limite_pp: float, modo: str):
+    df = tabela_pares(ics)
+    ordem = list(df["par"])
+    sup, tinta = cores.SUPERFICIE[modo], cores.TINTA[modo]
+    lim = max(limite_pp * 2, math.ceil(max(df["ic_inferior_pp"].abs().max(), df["ic_superior_pp"].abs().max()) + 0.5))
+    escala = alt.Scale(domain=[-lim, lim])
+    y = alt.Y("par:N", sort=ordem, title=None, axis=alt.Axis(labelLimit=260, labelColor=tinta["secundaria"], ticks=False))
+    titulo_x = "Diferença de medianas, 1º menos 2º (pontos percentuais; barra = IC de 95%)"
+    eixo_x = _eixo_pt(".0f", tickCount=7)
+    tooltip = [alt.Tooltip("par:N", title="Par"), alt.Tooltip("diferenca_mediana_pp:Q", title="Diferença (pp)", format=".2f"),
+               alt.Tooltip("ic_inferior_pp:Q", title="IC inferior (pp)", format=".2f"), alt.Tooltip("ic_superior_pp:Q", title="IC superior (pp)", format=".2f")]
+    faixa = alt.Chart(pd.DataFrame({"a": [-limite_pp], "b": [limite_pp]})).mark_rect(color=tinta["grade"], opacity=0.55).encode(
+        x=alt.X("a:Q", scale=escala), x2="b:Q")
+    zero = alt.Chart(pd.DataFrame({"x": [0.0]})).mark_rule(color=tinta["base"], strokeWidth=1).encode(x=alt.X("x:Q", scale=escala))
+    nome = alt.Chart(pd.DataFrame({"x": [limite_pp], "t": [f"faixa de ±{_pt(limite_pp, 0)} pp: diferença relevante"]})).mark_text(
+        align="left", dx=5, fontSize=11, color=tinta["muda"]).encode(x=alt.X("x:Q", scale=escala), y=alt.value(8), text="t:N")
+    intervalo = alt.Chart(df).mark_rule(strokeWidth=3, color=cores.DESTAQUE[modo]).encode(
+        y=y, x=alt.X("ic_inferior_pp:Q", scale=escala, title=titulo_x, axis=eixo_x), x2="ic_superior_pp:Q")
+    ponto = alt.Chart(df).mark_point(filled=True, size=110, color=cores.DESTAQUE[modo], stroke=sup, strokeWidth=2, opacity=1).encode(
+        y=y, x=alt.X("diferenca_mediana_pp:Q", scale=escala), tooltip=tooltip)
+    grafico = alt.layer(faixa, zero, nome, intervalo, ponto).properties(
+        title=titulo_pares(ics), height=46 * len(df) + 40, width="container")
+    return _base(grafico, modo)
+
+
+SERIE_TODOS, SERIE_CINCO = "Todos os households", "Só quem tem {n} ou mais compras"
+
+
+def tabela_sensibilidade(grupos: list[dict], grupos_sens: list[dict], minimo: int) -> pd.DataFrame:
+    sens = {g["segmento"]: g for g in grupos_sens}
+    linhas = []
+    for g in grupos:
+        for serie, d in ((SERIE_TODOS, g), (SERIE_CINCO.format(n=minimo), sens.get(g["segmento"]))):
+            if d:
+                linhas.append({"segmento": g["segmento"], "serie": serie, "households": d["households"], "mediana_pct": d["mediana_pct"],
+                               "desvio_padrao_pp": d["desvio_padrao_pp"]})
+    return pd.DataFrame(linhas)
+
+
+def titulo_sensibilidade(grupos_sens: list[dict], minimo: int, p_valor: float, veredito_sens: str) -> str:
+    lo, hi = min(g["mediana_pct"] for g in grupos_sens), max(g["mediana_pct"] for g in grupos_sens)
+    p = "< 0,001" if p_valor < 0.001 else "= " + _pt(p_valor, 2)
+    base = f"Só com quem comprou {minimo}+ vezes, as medianas ficam entre {_pt(lo, 1)}% e {_pt(hi, 1)}%"
+    if veredito_sens == "sem_diferenca_detectavel":
+        return f"{base} e a diferença deixa de ser significativa (p {p})"
+    return f"{base} (p {p})"
+
+
+def grafico_sensibilidade(grupos: list[dict], grupos_sens: list[dict], minimo: int, p_valor: float, veredito_sens: str, modo: str):
+    df = tabela_sensibilidade(grupos, grupos_sens, minimo)
+    ordem = list(dict.fromkeys(df["segmento"]))
+    sup, tinta = cores.SUPERFICIE[modo], cores.TINTA[modo]
+    series = [SERIE_TODOS, SERIE_CINCO.format(n=minimo)]
+    cor = alt.Color("serie:N", scale=alt.Scale(domain=series, range=[cores.CINZA[modo], cores.DESTAQUE[modo]]),
+                    legend=alt.Legend(title=None, labelLimit=360))
+    escala = alt.Scale(domain=[math.floor(df["mediana_pct"].min() - 1.5), math.ceil(df["mediana_pct"].max() + 1.5)])
+    y = alt.Y("segmento:N", sort=ordem, title=None, axis=alt.Axis(labelLimit=240, labelColor=tinta["secundaria"], ticks=False))
+    titulo_x = "Mediana do % de desconto do household"
+    tooltip = [alt.Tooltip("segmento:N", title="Segmento"), alt.Tooltip("serie:N", title="Grupo"), alt.Tooltip("households:Q", title="Households", format=","),
+               alt.Tooltip("mediana_pct:Q", title="Mediana (%)", format=".1f"), alt.Tooltip("desvio_padrao_pp:Q", title="Desvio-padrão (pp)", format=".1f")]
+    ligacao = alt.Chart(df).mark_rule(strokeWidth=2, color=tinta["base"]).encode(
+        y=y, x=alt.X("min(mediana_pct):Q", scale=escala, title=titulo_x, axis=_eixo_pt(".0f", tickCount=6)), x2="max(mediana_pct):Q")
+    # Quando as duas medianas coincidem o ponto cinza (maior) fica por baixo do azul (menor), e os dois continuam visíveis.
+    pontos_todos = alt.Chart(df[df["serie"] == series[0]]).mark_point(filled=True, size=300, stroke=sup, strokeWidth=2, opacity=1).encode(
+        y=y, x=alt.X("mediana_pct:Q", scale=escala), color=cor, tooltip=tooltip)
+    pontos_cinco = alt.Chart(df[df["serie"] == series[1]]).mark_point(filled=True, size=110, stroke=sup, strokeWidth=2, opacity=1).encode(
+        y=y, x=alt.X("mediana_pct:Q", scale=escala), color=cor, tooltip=tooltip)
+    grafico = alt.layer(ligacao, pontos_todos, pontos_cinco).properties(
+        title=titulo_sensibilidade(grupos_sens, minimo, p_valor, veredito_sens), height=52 * len(ordem) + 40, width="container")
+    return _base(grafico, modo)
