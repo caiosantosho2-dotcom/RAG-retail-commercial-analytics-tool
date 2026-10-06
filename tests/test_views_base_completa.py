@@ -186,3 +186,20 @@ def test_lojas_pequenas_marcadas(con):
     r = um(con, "SELECT COUNT(DISTINCT STORE_ID) FILTER (WHERE amostra_pequena), COUNT(DISTINCT STORE_ID) "
                 "FROM vw_metricas_loja_semana WHERE periodo = 'atual'")
     assert r[1] == 319 and 200 < r[0] < 220        # 211 das 319 lojas têm menos de 100 cestas na janela
+
+
+def test_cliente_semana_bate_com_o_csv_e_cobre_todo_o_historico(con):
+    ultima = um(con, "SELECT semana_fim_atual FROM vw_janela")[0]
+    n_csv, v_csv, c_csv, hh_csv = um(con, f"""SELECT COUNT(*), SUM(v), SUM(c), COUNT(DISTINCT h) FROM (
+        SELECT household_key AS h, WEEK_NO, SUM(SALES_VALUE) AS v, COUNT(DISTINCT BASKET_ID) AS c
+        FROM csv_validas WHERE WEEK_NO <= {ultima} GROUP BY 1, 2)""")
+    n, v, c, hh, sem_min, sem_max = um(con, "SELECT COUNT(*), SUM(faturamento), SUM(cestas), COUNT(DISTINCT household_key), "
+                                           "MIN(WEEK_NO), MAX(WEEK_NO) FROM vw_cliente_semana")
+    assert n == n_csv and c == c_csv and hh == hh_csv and float(v) == pytest.approx(float(v_csv), abs=0.05)
+    assert (sem_min, sem_max) == (1, ultima) and ultima == 101
+    assert um(con, "SELECT COUNT(*) - COUNT(DISTINCT (household_key, WEEK_NO)) FROM vw_cliente_semana")[0] == 0
+
+
+def test_cliente_semana_e_a_mesma_soma_das_janelas(con):
+    janela = float(um(con, "SELECT SUM(faturamento) FROM vw_cliente_semana WHERE WEEK_NO BETWEEN 76 AND 101")[0])
+    assert janela == pytest.approx(float(um(con, "SELECT SUM(faturamento) FROM vw_metricas_cesta WHERE periodo = 'atual'")[0]))

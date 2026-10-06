@@ -103,7 +103,7 @@ def validar_fontes(fontes: dict[str, Path]) -> None:
 
 
 # Muda quando a lógica de limpeza, do esquema ou das views muda: invalida bancos em cache.
-ETL_VERSAO = "3"
+ETL_VERSAO = "4"
 
 
 def calcular_versao(fontes: dict[str, Path], cfg: dict | None = None) -> tuple[str, list[dict]]:

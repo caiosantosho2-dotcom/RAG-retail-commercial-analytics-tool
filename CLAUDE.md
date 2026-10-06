@@ -217,3 +217,27 @@ Chave do Groq: variável `GROQ_API_KEY` (avaliação), `st.secrets["GROQ_API_KEY
   acerto ao vivo depende de `GROQ_API_KEY` (pendente).
 - 2026-10-06 — App: abas "Chat" (primeira) e "Dados e qualidade"; as abas de análise entram na
   fase 5 entre as duas, cada uma abrindo com o bloco "e daí?".
+- 2026-10-06 — Fase 5 (aprovadas A–D): uma análise por vez, com revisão e commit a cada uma
+  (5a RFM, 5b CLV, 5c churn, 5d teste de desconto). K=4 pela regra combinada; CLV com margem de
+  25% e horizonte de 52 semanas (premissas no config); churn de 8 semanas com split temporal;
+  coorte de apoio ao RFM.
+- 2026-10-06 — 5a (RFM): regra de K escrita antes de rodar (`analises.rfm` no config): K >= 3,
+  ARI mínima >= 0,90 entre sementes e subamostras, menor segmento >= 5%, silhueta >= 0,25; vence a
+  maior silhueta. Resultado: só K=4 passa (silhueta 0,37; ARI mín. 0,95-0,97); a silhueta pura
+  escolheria K=2 (0,52), que só separa ativos de inativos; K=3 e K=6 ficam pouco abaixo de 0,90
+  de ARI. Variáveis: recência em dias, frequência e valor em log1p, padronizados. SQL ordenado por
+  household_key (o K-Means depende da ordem das linhas). 79 households sem compra na janela ficam
+  fora e são contados. Nomes vêm do perfil: recência média >= 8 semanas (56 dias) = Inativos; os
+  demais por valor médio (Fiéis, Regulares, Esporádicos).
+- 2026-10-06 — 5a (coorte): com blocos de 8 semanas e painel inicial até a semana 14 só
+  sobrariam 2 coortes úteis (a entrada acontece nas semanas 1-20: 99,2% dos households, e só 19
+  entram depois). Desvio da decisão D, justificado pelo dado: blocos de 4 semanas, coortes com
+  < 30 households omitidas e contadas. Resultado: 5 coortes, retenção estável (77-82% por bloco).
+  Entrada no painel não é cliente novo.
+- 2026-10-06 — 5a (visual, skill dataviz): gráficos em Altair, `src/ui/` (cores, gráficos,
+  componentes, aba). Paleta de referência validada pelo porte Python do validador (`src/ui/cores.py`;
+  reproduz os números da skill: CVD adjacente 9,1/8,4 e visão normal 19,6/19,3); não há Node na
+  máquina. Emphasis (cinza + um destaque) em vez de várias cores; sequencial de um matiz no
+  heatmap, invertido no modo escuro; título = conclusão; versão em tabela de cada gráfico. Aba
+  abre com o bloco "e daí?". Nova view `vw_cliente_semana` (histórico por household e semana);
+  `ETL_VERSAO` = "4".

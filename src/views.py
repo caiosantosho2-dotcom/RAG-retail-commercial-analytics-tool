@@ -156,6 +156,20 @@ FROM c CROSS JOIN vw_janela j
 LEFT JOIN dim_household h ON h.household_key = c.household_key
 """),
 
+    ("vw_cliente_semana",
+     "Uma linha por household e semana (WEEK_NO) com compra, desde a primeira semana até a última completa: "
+     "cestas, faturamento, itens, desconto e valor bruto. Definição única do histórico que alimenta coorte, "
+     "CLV e churn; as semanas não vêm limitadas às janelas atual e base.",
+     """
+CREATE OR REPLACE VIEW vw_cliente_semana AS
+SELECT i.household_key, i.WEEK_NO,
+       COUNT(DISTINCT i.BASKET_ID) AS cestas, SUM(i.faturamento) AS faturamento, SUM(i.quantidade) AS itens,
+       SUM(i.desconto_total) AS desconto_total, SUM(i.valor_bruto) AS valor_bruto
+FROM vw_vendas_item i CROSS JOIN vw_janela j
+WHERE i.WEEK_NO <= j.semana_fim_atual
+GROUP BY i.household_key, i.WEEK_NO
+"""),
+
     ("vw_lojas_like_for_like",
      "Lojas com pelo menos uma cesta nos dois períodos (atual e base): o conjunto usado em toda comparação "
      "com o ano anterior.",
@@ -321,7 +335,7 @@ FROM per p
 # Views caras guardam o resultado numa tabela `_mat_*` (medido antes: vw_yoy_categoria 9,6 s,
 # vw_metricas_cliente 2,8 s, vw_yoy_loja/resumo 2 a 5 s por recalcular a agregação de cestas).
 # O SQL continua único: a view é criada com a definição e só depois redirecionada.
-MATERIALIZAR = {"vw_metricas_cesta", "vw_yoy_categoria", "vw_metricas_cliente", "vw_yoy_loja", "vw_yoy_resumo"}
+MATERIALIZAR = {"vw_cliente_semana", "vw_metricas_cesta", "vw_yoy_categoria", "vw_metricas_cliente", "vw_yoy_loja", "vw_yoy_resumo"}
 
 # Métricas de negócio: nome, definição, fórmula, view de origem. Alimenta descrever_dados, o glossário e o README.
 METRICAS = [
@@ -352,6 +366,8 @@ METRICAS = [
      "coluna cliente_ativo (booleana): última compra dentro das últimas 8 semanas do período", "vw_metricas_cliente"),
     ("recencia_dias", "Dias entre a última compra do household e o último dia do período.",
      "coluna recencia_dias = dias entre a última compra e o último dia do período", "vw_metricas_cliente"),
+    ("semanas_com_compra", "Número de semanas (WEEK_NO) em que o household comprou, em todo o histórico.",
+     "COUNT(*) de vw_cliente_semana por household_key", "vw_cliente_semana"),
     ("frequencia_cliente", "Número de cestas do household no período.", "COUNT(DISTINCT BASKET_ID)",
      "vw_metricas_cliente"),
     ("valor_cliente", "Faturamento do household no período.", "SUM(faturamento)", "vw_metricas_cliente"),

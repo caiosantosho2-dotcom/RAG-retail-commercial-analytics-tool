@@ -162,3 +162,18 @@ def test_metricas_definicao_e_comentarios(con):
         comentario = con.execute("SELECT comment FROM duckdb_views() WHERE view_name = ?", [nome]).fetchone()[0]
         assert comentario and len(comentario) > 20, f"{nome} sem comentário de definição"
     assert um(con, "SELECT COUNT(*) FROM metricas_definicao")[0] == len(views.METRICAS)
+
+
+def test_cliente_semana_cobre_todo_o_historico_ate_a_ultima_semana_completa(con):
+    # inclui a semana 1 (fora das duas janelas): é o histórico que alimenta coorte, CLV e churn
+    assert um(con, "SELECT COUNT(*), MIN(WEEK_NO), MAX(WEEK_NO) FROM vw_cliente_semana") == (8, 1, 10)
+    h1_s5 = um(con, "SELECT cestas, faturamento, itens, desconto_total, valor_bruto FROM vw_cliente_semana "
+                    "WHERE household_key = 1 AND WEEK_NO = 5")
+    assert [float(x) for x in h1_s5] == [1.0, 14.0, 3.0, 1.0, 15.0]
+    assert float(um(con, "SELECT faturamento FROM vw_cliente_semana WHERE household_key = 1 AND WEEK_NO = 1")[0]) == 99.0
+    assert dict(linhas(con, "SELECT household_key, COUNT(*) FROM vw_cliente_semana GROUP BY 1")) == {1: 4, 2: 2, 3: 2}
+    # tem uma linha por household e semana, sem repetir
+    assert um(con, "SELECT COUNT(*) - COUNT(DISTINCT (household_key, WEEK_NO)) FROM vw_cliente_semana")[0] == 0
+    # soma igual à da view de itens (menos nada: todas as semanas até a 10)
+    assert float(um(con, "SELECT SUM(faturamento) FROM vw_cliente_semana")[0]) == float(
+        um(con, "SELECT SUM(faturamento) FROM vw_vendas_item WHERE WEEK_NO <= 10")[0])

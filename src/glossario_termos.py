@@ -34,6 +34,8 @@ _TERMOS_DE_METRICA = [
      "idas_por_cliente", ""),
     ("Cliente ativo", "clientes ativos, base ativa, quem ainda compra", "cliente_ativo", ""),
     ("Recência", "há quanto tempo comprou, dias desde a última compra, última compra", "recencia_dias", ""),
+    ("Semanas com compra", "constância de compra, quantas semanas o cliente comprou, histórico semanal, atividade por semana",
+     "semanas_com_compra", "Histórico completo por semana: vw_cliente_semana (household_key, WEEK_NO, cestas, faturamento)."),
     ("Frequência do cliente", "número de compras do cliente, quantas compras por cliente", "frequencia_cliente", ""),
     ("Valor do cliente", "gasto do cliente, quanto o cliente gastou, valor monetário", "valor_cliente", ""),
     ("Janela atual", "período atual, últimas 26 semanas, período de análise, agora", "janela_atual",
