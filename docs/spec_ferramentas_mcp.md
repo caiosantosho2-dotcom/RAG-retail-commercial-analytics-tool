@@ -50,14 +50,15 @@ As descrições abaixo viram as docstrings. A IA escolhe a ferramenta pela descr
 - **Nunca:** devolver linhas de dados.
 
 ### 3.2 `executar_consulta(sql: str, limite: int = 20)`
-- **Descrição:** "Executa uma consulta SQL de leitura nas views do projeto e devolve o resultado. Use para perguntas pontuais (vendas de uma loja, ticket médio, comparação com o ano anterior). Não use para segmentação, CLV, churn ou testes estatísticos: para isso existem ferramentas próprias."
+- **Descrição:** "Executa uma consulta SQL de leitura nas views e dimensões do projeto e devolve o resultado. Use para perguntas pontuais (vendas de uma loja, ticket médio, comparação com o ano anterior). Não use para segmentação, CLV, churn ou testes estatísticos: para isso existem ferramentas próprias."
 - **Entrada:** `sql` (uma instrução SELECT ou WITH); `limite` (1 a 200).
-- **Saída:** `colunas`, `linhas` (até o limite), `total_linhas`, `truncado` (bool), `sql_executado`, `versao_base`.
+- **Saída:** `colunas`, `linhas` (até o limite), `total_linhas`, `truncado` (bool), `limite_aplicado`, `sql_executado`, `versao_base`, `janela`; `aviso` quando o retorno é reduzido pelo limite de tamanho.
+- **Tabelas visíveis:** `vw_*`, `dim_*`, `fato_transacoes`, `campaign_*`, `coupon*`, `causal_semana_loja` e `metricas_definicao`. Ficam de fora `raw_*`, `fato_ajustes`, `log_cargas`, `meta` e `_mat_*` (allowlist no código).
 - **Nunca:** executar escrita, mais de uma instrução, ou retornar mais que o limite.
 - **Pronto quando:** passa nos testes de guard-rail e acerta as perguntas de consulta do conjunto de avaliação.
 
 ### 3.3 `segmentar_clientes(n_clusters: int | None = None)`
-- **Descrição:** "Segmenta os households por RFM com K-Means e devolve o perfil e o tamanho de cada segmento. Use para 'quem são os clientes', 'quais segmentos existem' ou antes de comparar segmentos. Se n_clusters não for informado, o K é escolhido por silhueta."
+- **Descrição:** "Segmenta os households por RFM com K-Means e devolve o perfil e o tamanho de cada segmento. Use para 'quem são os clientes', 'quais segmentos existem' ou antes de comparar segmentos. Se n_clusters não for informado, o K é escolhido pela regra combinada (silhueta, estabilidade e tamanho dos segmentos)."
 - **Saída:** `k_usado`, `metodo_escolha_k`, `silhueta`, `segmentos` (nome, nº de households, R/F/V médios, % do faturamento), `estabilidade` (concordância entre sementes), `excluidos` (quantos e por quê), `e_dai`, `versao_base`.
 - **Regras:** nomes dos segmentos vêm do perfil real; nenhum segmento sem nome; semente fixa; resultado cacheado por `versao_base`.
 - **Nunca:** devolver a lista completa de households.

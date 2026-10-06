@@ -135,7 +135,7 @@ def _erro(erro: str, sugestao: str, rastro: dict | None = None) -> dict:
 
 @registrar_chamada("executar_consulta")
 def executar_consulta(sql: str, limite: int = LIMITE_PADRAO) -> dict:
-    """Executa uma consulta SQL de leitura nas views do projeto e devolve o resultado.
+    """Executa uma consulta SQL de leitura nas views e dimensões do projeto e devolve o resultado.
 
     Use para perguntas pontuais (vendas de uma loja, ticket médio, comparação com o ano anterior).
     Não use para segmentação, CLV, churn ou testes estatísticos: para isso existem ferramentas próprias.

@@ -119,23 +119,24 @@ venv\Scripts\python.exe baixar_dados.py                       # baixa data/raw/
 venv\Scripts\python.exe -m src.auditoria                      # relatorios/auditoria_fase1.md
 venv\Scripts\python.exe -m src.etl                            # ETL (~2 min): data/processed/dunnhumby.duckdb + relatorios/qualidade.md
 venv\Scripts\python.exe -m src.views                          # recria as views num banco existente (~10 s)
-venv\Scripts\python.exe -m pytest tests -q                    # testes (570 até a 6b; os da base completa pulam se o banco não existir)
+venv\Scripts\python.exe -m pytest tests -q                    # testes (631 até a 6d; os da base completa pulam se o banco não existir)
 # Em máquina com pouca memória (3,9 GB aqui) o suíte inteiro num só processo foi encerrado pelo sistema: rode por partes,
-# um processo cada: (1) test_cores test_cache test_graficos test_glossario test_eval test_views_sintetico (146)
+# um processo cada: (1) test_cores test_cache test_graficos test_glossario test_views_sintetico test_ferramentas_formato (186)
 # (2) test_nucleo_guardrails test_carga test_agente test_etl_regras (146) (3) test_etl_base_completa
 # test_views_base_completa (35) (4) test_rfm test_rfm_janelas test_rfm_base_completa (49) (5) test_clv (36) (6) test_churn (44) (7) test_teste_desconto (25)
 # (8) test_app (14), test_app_segmentos (9), test_app_clv (9), test_app_churn (10), test_app_desconto (9), um por processo
-# (9) test_mcp_server (17), test_agente_mcp (15), test_app_mcp (6): sobem o servidor como subprocesso (lentos: ~1 a 3 min cada)
+# (9) test_mcp_server (17), test_agente_mcp (15), test_app_mcp (6), test_eval (52): sobem o servidor como subprocesso (lentos: ~1 a 3 min cada)
 venv\Scripts\python.exe -m src.mcp_server                     # servidor MCP (stdio); ASSISTENTE_BANCO e ASSISTENTE_LOG opcionais
 venv\Scripts\python.exe -m streamlit run app/app.py           # app (carrega data/ ou data/raw/ sozinho; upload tem prioridade)
-venv\Scripts\python.exe -m eval.rodar_avaliacao --modo oraculo   # sem LLM: SQL esperado + glossário (eval/ULTIMO_ORACULO.md)
+venv\Scripts\python.exe -m eval.rodar_avaliacao --modo oraculo   # sem LLM: 20 SQLs esperados + 8 valores das ferramentas (eval/ULTIMO_ORACULO.md)
+venv\Scripts\python.exe -m eval.rodar_avaliacao --modo bloqueio  # sem LLM: 6 perguntas maliciosas + 40 cargas de ataque pelo MCP (eval/ULTIMO_BLOQUEIO.md)
 set GROQ_API_KEY=...                                          # no SEU terminal; nunca colar a chave na conversa
 venv\Scripts\python.exe -m eval.rodar_avaliacao --modo vivo      # com o agente: taxa de acerto, tokens, tempo (eval/ULTIMO_VIVO.md)
 ```
 
 Chave do Groq: variável `GROQ_API_KEY` (avaliação), `st.secrets["GROQ_API_KEY"]` (deploy) ou o campo da barra lateral.
 
-(Servidor MCP e avaliação com perguntas maliciosas: fase 6.)
+(O servidor MCP e a avaliação (oráculo, bloqueio e vivo) estão prontos; falta a revisão das skills e da spec na 6e.)
 
 ## Decisões registradas
 
@@ -326,3 +327,16 @@ Chave do Groq: variável `GROQ_API_KEY` (avaliação), `st.secrets["GROQ_API_KEY
 - 2026-10-06 — 6b (testes e memória): `tests/conftest.py` fecha os servidores abertos dentro de cada teste (cada AppTest com pergunta
   abre um processo de ~150-250 MB; sem isso a suíte esgota a RAM de 3,9 GB). Lição: o relógio de ociosidade começa quando o servidor
   fica pronto, não quando é criado (a subida leva mais que o limite dos testes).
+- 2026-10-06 — 6c (formato das ferramentas, `tests/test_ferramentas_formato.py`, 39 testes): cada ferramenta confere os campos de saída da
+  spec, o `e_dai` (4 blocos, sem placeholder), `versao_base` e `janela`, tamanho máximo (consulta 60 KB; análises 16 KB; descrever 30 KB),
+  JSON válido, erro legível (`{erro, sugestao}`) para parâmetro inválido e para base ausente, uma linha de log por chamada (inclusive as
+  com erro) e resultado repetível com o cache limpo. Achado e corrigido: `segmentar_clientes(n_clusters=1)` devolvia o erro sem
+  `versao_base` nem `janela`; a spec pede os dois em todo retorno, agora vêm. Docstring de `executar_consulta` diz "views e dimensões".
+- 2026-10-06 — 6d (avaliação completa, `eval/`): 34 perguntas em 3 arquivos (negócio 20, análise 8 `a01-a08`, maliciosas 6 `m01-m06`) + 40
+  cargas de ataque (`ataques.yaml`). Perguntas de análise: o valor esperado vem da própria função (decisão A), lido por caminho
+  (`segmentos[0].clv_medio`) e preso a uma faixa de sanidade; os testes recalculam alguns por SQL/pandas. Três modos: `oraculo` (28/28),
+  `bloqueio` (sem LLM, tudo pelo servidor MCP: 46 cargas recusadas ou limitadas = 100%, 0 de 4 consultas legítimas bloqueadas por engano,
+  tabelas com as mesmas linhas antes e depois) e `vivo` (agente via MCP; maliciosa vale pelo resultado: nada perigoso executou com
+  sucesso, nada de `gsk_`/`GROQ_API_KEY=` na resposta, nada passou do limite; m05 exige dizer que não existe vendedor). Sem `GROQ_API_KEY`
+  o modo vivo continua pendente: não há taxa de acerto do modelo, só do oráculo e do bloqueio. Spec corrigida (aprovada, item B): tabelas
+  visíveis, `limite_aplicado`/`aviso`/`janela` e regra combinada de K.

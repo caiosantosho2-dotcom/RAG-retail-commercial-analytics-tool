@@ -1,0 +1,101 @@
+# Perguntas que só as ferramentas de análise respondem (v2): segmentação, CLV, churn e teste de desconto.
+#
+# Não há SQL esperado: o valor esperado vem da própria função do núcleo (decisão A da fase 6), lido pelo `caminho` dentro
+# do retorno, e cada valor é conferido contra a faixa de `sanidade` (que protege contra uma função quebrada). Os números
+# das funções já são validados pelos testes de cada análise contra caminhos independentes (pandas, scipy, SQL).
+#
+#   categoria              analise
+#   ferramenta_esperada    ferramenta que o agente deve chamar
+#   esperado_ferramenta    {argumentos, valores: [{caminho, rotulo, tipo, tolerancia_rel | tolerancia_abs, sanidade}]}
+#   caminho                chaves separadas por ponto; [n] indexa listas (ex.: segmentos[0].clv_medio)
+
+- id: a01
+  categoria: analise
+  pergunta: "Quantos segmentos de clientes existem e qual deles concentra mais do faturamento?"
+  regra: "segmentar_clientes: k_usado e o primeiro segmento (maior valor médio) com seu nome."
+  ferramenta_esperada: segmentar_clientes
+  termos_glossario: []
+  esperado_ferramenta:
+    argumentos: {}
+    valores:
+      - {caminho: "k_usado", rotulo: k_usado, tipo: id, sanidade: [3, 6]}
+      - {caminho: "segmentos[0].nome", rotulo: segmento_principal, tipo: texto}
+
+- id: a02
+  categoria: analise
+  pergunta: "Que parcela do faturamento vem dos clientes Fiéis?"
+  regra: "segmentar_clientes: segmentos[0].pct_faturamento (o segmento Fiéis é o de maior valor médio)."
+  ferramenta_esperada: segmentar_clientes
+  termos_glossario: []
+  esperado_ferramenta:
+    argumentos: {}
+    valores:
+      - {caminho: "segmentos[0].pct_faturamento", rotulo: pct_faturamento_fieis, tolerancia_abs: 0.6, sanidade: [40, 90]}
+
+- id: a03
+  categoria: analise
+  pergunta: "Quanto vale, em margem esperada nos próximos 12 meses, um household do grupo Fiéis?"
+  regra: "calcular_clv: segmentos[0].clv_medio (US$ por household, horizonte de 52 semanas, margem de 25% como premissa)."
+  ferramenta_esperada: calcular_clv
+  termos_glossario: []
+  esperado_ferramenta:
+    argumentos: {}
+    valores:
+      - {caminho: "segmentos[0].clv_medio", rotulo: clv_fieis, tolerancia_rel: 0.01, sanidade: [300, 2000]}
+
+- id: a04
+  categoria: analise
+  pergunta: "Qual o valor total esperado, em margem, dos 2.500 clientes nos próximos 12 meses?"
+  regra: "calcular_clv: total.clv_total_usd (soma dos grupos, inclui os sem compra na janela)."
+  ferramenta_esperada: calcular_clv
+  termos_glossario: []
+  esperado_ferramenta:
+    argumentos: {}
+    valores:
+      - {caminho: "total.clv_total_usd", rotulo: clv_total, tolerancia_rel: 0.01, sanidade: [500000, 3000000]}
+
+- id: a05
+  categoria: analise
+  pergunta: "Qual segmento tem maior risco de ficar 8 semanas sem comprar, e qual é esse risco?"
+  regra: "prever_churn: risco_por_segmento, o de maior risco_medio_pct (Esporádicos); churn = pausa de 8 semanas."
+  ferramenta_esperada: prever_churn
+  termos_glossario: []
+  esperado_ferramenta:
+    argumentos: {}
+    valores:
+      - {caminho: "risco_por_segmento[2].nome", rotulo: segmento_maior_risco, tipo: texto}
+      - {caminho: "risco_por_segmento[2].risco_medio_pct", rotulo: risco_pct, tolerancia_abs: 0.3, sanidade: [5, 60]}
+
+- id: a06
+  categoria: analise
+  pergunta: "O modelo de churn é melhor do que uma regra simples? Qual a AUC de cada um?"
+  regra: "prever_churn: auc_modelo contra auc_baseline (regra de recência), no período de teste."
+  ferramenta_esperada: prever_churn
+  termos_glossario: []
+  esperado_ferramenta:
+    argumentos: {}
+    valores:
+      - {caminho: "auc_modelo", rotulo: auc_modelo, tolerancia_abs: 0.006, sanidade: [0.6, 0.99]}
+      - {caminho: "auc_baseline", rotulo: auc_regra, tolerancia_abs: 0.006, sanidade: [0.5, 0.95]}
+
+- id: a07
+  categoria: analise
+  pergunta: "Os segmentos de clientes recebem desconto diferente? Qual o p-valor do teste?"
+  regra: "testar_desconto_entre_segmentos: kruskal_wallis.p_valor; o e_dai diz se a diferença é relevante ou desprezível."
+  ferramenta_esperada: testar_desconto_entre_segmentos
+  termos_glossario: []
+  esperado_ferramenta:
+    argumentos: {}
+    valores:
+      - {caminho: "kruskal_wallis.p_valor", rotulo: p_valor, tolerancia_abs: 0.0015, sanidade: [0, 1]}
+
+- id: a08
+  categoria: analise
+  pergunta: "Qual a mediana do percentual de desconto dos clientes Fiéis?"
+  regra: "testar_desconto_entre_segmentos: grupos[0].mediana_pct (mediana do % de desconto por household)."
+  ferramenta_esperada: testar_desconto_entre_segmentos
+  termos_glossario: []
+  esperado_ferramenta:
+    argumentos: {}
+    valores:
+      - {caminho: "grupos[0].mediana_pct", rotulo: mediana_desconto_fieis, tolerancia_abs: 0.1, sanidade: [5, 30]}

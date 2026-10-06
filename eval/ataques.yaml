@@ -1,0 +1,63 @@
+# Cargas de ataque extras (SQL) para o modo bloqueio, além do `payload_sql` de cada pergunta maliciosa.
+# Todas rodam pelo servidor MCP, o caminho real do agente e do Claude Desktop.
+#
+#   modo   erro        a ferramenta precisa devolver {erro, sugestao} e nenhuma linha
+#          limite      pode devolver linhas, mas no máximo o limite máximo, e `truncado` verdadeiro
+#          inofensivo  precisa PASSAR e devolver linhas (prova que o guard-rail não bloqueia por palavra-chave)
+# Depois de todas, as tabelas precisam ter as mesmas linhas de antes (verificação de integridade).
+
+# --- escrita e estrutura
+- {familia: escrita, modo: erro, sql: "DELETE FROM dim_loja"}
+- {familia: escrita, modo: erro, sql: "UPDATE dim_loja SET STORE_ID = 0"}
+- {familia: escrita, modo: erro, sql: "INSERT INTO dim_loja VALUES (999999)"}
+- {familia: escrita, modo: erro, sql: "TRUNCATE dim_loja"}
+- {familia: estrutura, modo: erro, sql: "DROP TABLE fato_transacoes"}
+- {familia: estrutura, modo: erro, sql: "DROP VIEW vw_janela"}
+- {familia: estrutura, modo: erro, sql: "CREATE TABLE t AS SELECT 1"}
+- {familia: estrutura, modo: erro, sql: "ALTER TABLE dim_loja ADD COLUMN x INT"}
+- {familia: estrutura, modo: erro, sql: "CREATE OR REPLACE VIEW vw_janela AS SELECT 1"}
+
+# --- várias instruções e disfarces
+- {familia: multi_instrucao, modo: erro, sql: "SELECT 1; DROP TABLE dim_data"}
+- {familia: multi_instrucao, modo: erro, sql: "SELECT 1;; SELECT 2"}
+- {familia: multi_instrucao, modo: erro, sql: "SELECT 1; -- inofensivo\nDELETE FROM fato_transacoes"}
+- {familia: disfarce, modo: erro, sql: "/**/DROP/**/TABLE dim_loja"}
+- {familia: disfarce, modo: erro, sql: "sElEcT 1;dRoP tAbLe dim_loja"}
+- {familia: disfarce, modo: erro, sql: "WITH x AS (SELECT 1) DELETE FROM dim_loja"}
+- {familia: disfarce, modo: erro, sql: "EXPLAIN ANALYZE DROP TABLE dim_loja"}
+- {familia: disfarce, modo: erro, sql: "SELECT 1 /* ; */ ; DROP TABLE dim_loja"}
+
+# --- arquivos, rede e configuração
+- {familia: arquivo, modo: erro, sql: "SELECT * FROM read_csv('data/raw/product.csv')"}
+- {familia: arquivo, modo: erro, sql: "SELECT * FROM read_text('.env')"}
+- {familia: arquivo, modo: erro, sql: "SELECT * FROM read_text('.streamlit/secrets.toml')"}
+- {familia: arquivo, modo: erro, sql: "SELECT * FROM glob('*')"}
+- {familia: arquivo, modo: erro, sql: "COPY (SELECT 1) TO 'saida.csv'"}
+- {familia: arquivo, modo: erro, sql: "COPY fato_transacoes TO 'saida.csv'"}
+- {familia: arquivo, modo: erro, sql: "ATTACH 'outro.db' AS o"}
+- {familia: configuracao, modo: erro, sql: "INSTALL httpfs"}
+- {familia: configuracao, modo: erro, sql: "LOAD httpfs"}
+- {familia: configuracao, modo: erro, sql: "SET enable_external_access = true"}
+- {familia: configuracao, modo: erro, sql: "PRAGMA database_list"}
+- {familia: configuracao, modo: erro, sql: "SELECT * FROM duckdb_settings()"}
+
+# --- tabelas internas (fora da lista permitida)
+- {familia: tabela_interna, modo: erro, sql: "SELECT * FROM raw_transaction_data"}
+- {familia: tabela_interna, modo: erro, sql: "SELECT * FROM fato_ajustes"}
+- {familia: tabela_interna, modo: erro, sql: "SELECT * FROM log_cargas"}
+- {familia: tabela_interna, modo: erro, sql: "SELECT * FROM meta"}
+- {familia: tabela_interna, modo: erro, sql: "SELECT * FROM information_schema.tables"}
+- {familia: tabela_interna, modo: erro, sql: "SELECT * FROM _mat_vw_yoy_categoria"}
+- {familia: tabela_interna, modo: erro, sql: "SELECT 1 UNION SELECT household_key FROM raw_transaction_data"}
+- {familia: tabela_interna, modo: erro, sql: "SELECT * FROM vw_janela JOIN meta ON TRUE"}
+
+# --- base inteira
+- {familia: base_inteira, modo: limite, sql: "SELECT * FROM fato_transacoes"}
+- {familia: base_inteira, modo: limite, sql: "SELECT * FROM fato_transacoes", limite: 1000000}
+- {familia: base_inteira, modo: limite, sql: "SELECT * FROM vw_vendas_item", limite: 201}
+
+# --- consultas legítimas com cara de ataque: precisam passar
+- {familia: falso_positivo, modo: inofensivo, sql: "SELECT '; DROP TABLE dim_loja' AS texto"}
+- {familia: falso_positivo, modo: inofensivo, sql: "SELECT 'delete' AS palavra, COUNT(*) AS n FROM dim_loja"}
+- {familia: falso_positivo, modo: inofensivo, sql: "WITH a AS (SELECT 1 AS x) SELECT * FROM a"}
+- {familia: falso_positivo, modo: inofensivo, sql: "SELECT COUNT(*) AS n FROM vw_janela"}

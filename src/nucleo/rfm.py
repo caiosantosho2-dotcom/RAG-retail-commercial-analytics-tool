@@ -300,13 +300,13 @@ def segmentar_clientes(n_clusters: int | None = None) -> dict:
     tamanho dos segmentos). Nunca devolve a lista de households.
     """
     k, erro = _valido(n_clusters)
-    if erro:
-        return erro
     try:
         cur = banco.cursor()
     except FileNotFoundError:
         return {"erro": "Nenhuma base carregada.", "sugestao": "Carregue os arquivos de dados antes de analisar."}
     rastro = banco.rastreabilidade(cur)
+    if erro:
+        return {**erro, **rastro}      # a spec pede versao_base e janela em todo retorno, inclusive no erro
     try:
         retorno, _ = _resultado(cur, k)
     except Exception as e:   # base pequena, janela vazia etc.: mensagem curta, sem despejo técnico
