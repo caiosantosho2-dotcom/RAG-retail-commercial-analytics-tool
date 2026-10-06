@@ -33,6 +33,13 @@ def _pt(x: float, casas: int = 0) -> str:
     return f"{x:.{casas}f}".replace(".", ",")
 
 
+def _eixo_pt(formato: str, **opcoes) -> alt.Axis:
+    """Eixo numérico com rótulos no formato brasileiro (vírgula decimal, ponto de milhar). O Vega usa o formato
+    americano por padrão e o Streamlit não expõe o locale, então os rótulos são trocados por expressão."""
+    expr = f"replace(replace(replace(format(datum.value, '{formato}'), ',', '#'), '.', ','), '#', '.')"
+    return alt.Axis(labelExpr=expr, **opcoes)
+
+
 # --------------------------------------------------------------------------- segmentos
 
 def tabela_segmentos(segmentos: list[dict]) -> pd.DataFrame:
@@ -98,7 +105,8 @@ def grafico_k(avaliacao: list[dict], k_usado: int, cfg: dict, modo: str):
     df = tabela_k(avaliacao, k_usado, cfg)
     sup, tinta = cores.SUPERFICIE[modo], cores.TINTA[modo]
     x = alt.X("k:O", title="Número de segmentos (K)", axis=alt.Axis(labelAngle=0))
-    y = alt.Y("silhueta:Q", title="Silhueta (quanto maior, mais separados)", scale=alt.Scale(domain=[0, round(df["silhueta"].max() + 0.1, 1)]))
+    y = alt.Y("silhueta:Q", title="Silhueta (quanto maior, mais separados)", scale=alt.Scale(domain=[0, round(df["silhueta"].max() + 0.1, 1)]),
+              axis=_eixo_pt(".1f"))
     linha = alt.Chart(df).mark_line(color=cores.CINZA[modo], strokeWidth=2).encode(x=x, y=y)
     cor = alt.Color("estado:N", scale=alt.Scale(domain=["K escolhido", "Demais K"], range=[cores.DESTAQUE[modo], cores.CINZA[modo]]),
                     legend=alt.Legend(title=None))
@@ -174,7 +182,7 @@ def grafico_clv(segs: list[dict], modo: str):
     sup, tinta = cores.SUPERFICIE[modo], cores.TINTA[modo]
     y = alt.Y("segmento:N", sort=ordem, title=None, axis=alt.Axis(labelLimit=240, labelColor=tinta["secundaria"], ticks=False))
     x = alt.X("clv_medio_usd:Q", title="CLV por household em 52 semanas (US$, margem assumida)",
-              scale=alt.Scale(domain=[0, math.ceil(df["ic_superior"].max() * 1.12 / 100) * 100]), axis=alt.Axis(format=",.0f", tickCount=5))
+              scale=alt.Scale(domain=[0, math.ceil(df["ic_superior"].max() * 1.12 / 100) * 100]), axis=_eixo_pt(",.0f", tickCount=5))
     tooltip = [alt.Tooltip("segmento:N", title="Grupo"), alt.Tooltip("households:Q", title="Households", format=","),
                alt.Tooltip("clv_medio_usd:Q", title="CLV médio (US$)", format=",.0f"),
                alt.Tooltip("ic_inferior:Q", title="IC 95% inferior", format=",.0f"), alt.Tooltip("ic_superior:Q", title="IC 95% superior", format=",.0f"),
@@ -209,7 +217,7 @@ def grafico_ritmo(segs: list[dict], modo: str):
     sup, tinta = cores.SUPERFICIE[modo], cores.TINTA[modo]
     y = alt.Y("segmento:N", sort=ordem, title=None, axis=alt.Axis(labelLimit=240, labelColor=tinta["secundaria"], ticks=False))
     x = alt.X("ritmo:Q", title="Ritmo de gasto nas 52 semanas seguintes ÷ ritmo das últimas 26 semanas (1 = igual)",
-              scale=alt.Scale(domain=[0, math.ceil(df["ic_superior"].max() * 1.15 * 2) / 2]), axis=alt.Axis(format=".1f", tickCount=5))
+              scale=alt.Scale(domain=[0, math.ceil(df["ic_superior"].max() * 1.15 * 2) / 2]), axis=_eixo_pt(".1f", tickCount=5))
     tooltip = [alt.Tooltip("segmento:N", title="Grupo"), alt.Tooltip("ritmo:Q", title="Ritmo relativo", format=".2f"),
                alt.Tooltip("ic_inferior:Q", title="IC 95% inferior", format=".2f"), alt.Tooltip("ic_superior:Q", title="IC 95% superior", format=".2f"),
                alt.Tooltip("razao_futuro_passado:Q", title="Razão (52 sem ÷ 26 sem)", format=".2f")]
@@ -264,4 +272,134 @@ def grafico_backtest(bt: dict, modo: str):
         align=alt.expr("datum.erro < 0 ? 'right' : 'left'"), dx=alt.expr("datum.erro < 0 ? -6 : 6"), fontSize=12, fontWeight=600
     ).encode(y=y, yOffset=desloc, x="erro:Q", text="rotulo:N")
     grafico = alt.layer(zero, barras, rotulo).properties(title=titulo_backtest(bt), height=52 * len(df) + 40, width="container")
+    return _base(grafico, modo)
+
+
+# --------------------------------------------------------------------------- churn (pausa longa)
+
+def tabela_risco(segs: list[dict]) -> pd.DataFrame:
+    total_p = sum(s["pausas_esperadas"] for s in segs) or 1.0
+    total_v = sum(s["valor_em_risco_usd"] for s in segs) or 1.0
+    return pd.DataFrame([{"segmento": s["nome"], "households": s["households"], "risco_medio_pct": s["risco_medio_pct"],
+                          "pausas_esperadas": s["pausas_esperadas"], "pct_das_pausas": 100 * s["pausas_esperadas"] / total_p,
+                          "alertas": s["alertas"], "valor_em_risco_usd": s["valor_em_risco_usd"],
+                          "pct_do_valor_em_risco": 100 * s["valor_em_risco_usd"] / total_v} for s in segs])
+
+
+def titulo_risco(df: pd.DataFrame, horizonte: int) -> str:
+    alto, baixo = df.loc[df["risco_medio_pct"].idxmax()], df.loc[df["risco_medio_pct"].idxmin()]
+    return (f"{alto['segmento']} têm {_pt(alto['risco_medio_pct'], 1)}% de risco de ficar {horizonte} semanas sem comprar; "
+            f"{baixo['segmento']}, {_pt(baixo['risco_medio_pct'], 1)}%")
+
+
+def grafico_risco(segs: list[dict], horizonte: int, modo: str):
+    df = tabela_risco(segs)
+    ordem = list(df["segmento"])
+    sup, tinta = cores.SUPERFICIE[modo], cores.TINTA[modo]
+    y = alt.Y("segmento:N", sort=ordem, title=None, axis=alt.Axis(labelLimit=240, labelColor=tinta["secundaria"], ticks=False))
+    x = alt.X("risco_medio_pct:Q", title=f"Risco médio de ficar {horizonte} semanas sem comprar (%)",
+              scale=alt.Scale(domain=[0, math.ceil((df["risco_medio_pct"].max() * 1.25) / 5) * 5]), axis=alt.Axis(format=".0f", tickCount=5))
+    tooltip = [alt.Tooltip("segmento:N", title="Segmento"), alt.Tooltip("households:Q", title="Households ativos", format=","),
+               alt.Tooltip("risco_medio_pct:Q", title="Risco médio (%)", format=".1f"), alt.Tooltip("pausas_esperadas:Q", title="Pausas esperadas", format=".0f"),
+               alt.Tooltip("pct_das_pausas:Q", title="% das pausas", format=".0f"), alt.Tooltip("alertas:Q", title="Em alerta hoje", format=","),
+               alt.Tooltip("valor_em_risco_usd:Q", title="Faturamento em risco (US$)", format=",.0f"),
+               alt.Tooltip("pct_do_valor_em_risco:Q", title="% do valor em risco", format=".0f")]
+    barras = alt.Chart(df).mark_bar(cornerRadiusEnd=4, size=18, color=cores.DESTAQUE[modo], stroke=sup, strokeWidth=2).encode(y=y, x=x, tooltip=tooltip)
+    rotulos = alt.Chart(df.assign(rotulo=lambda d: d["risco_medio_pct"].map(lambda v: f"{_pt(v, 1)}%"))).mark_text(
+        align="left", dx=6, fontSize=12, fontWeight=600).encode(y=y, x="risco_medio_pct:Q", text="rotulo:N")
+    grafico = alt.layer(barras, rotulos).properties(title=titulo_risco(df, horizonte), height=52 * len(df) + 30, width="container")
+    return _base(grafico, modo)
+
+
+SERIE_PRECISAO, SERIE_RECALL = "Precisão (alertas que se confirmam)", "Recall (pausas que o alerta pega)"
+
+
+def tabela_limiar(curva: list[dict]) -> pd.DataFrame:
+    return pd.DataFrame([{"limiar": c["limiar"], "precisao_pct": 100 * c["precisao"], "recall_pct": 100 * c["recall"], "alertas_no_teste": c["alertas"],
+                          "escolhido": c["escolhido"]} for c in curva])
+
+
+def titulo_limiar(curva: list[dict]) -> str:
+    c = next(x for x in curva if x["escolhido"])
+    return (f"No limiar {_pt(c['limiar'], 2)}, {_pt(100 * c['precisao'])}% dos alertas se confirmam e {_pt(100 * c['recall'])}% das pausas são pegas; "
+            "subir o limiar troca recall por precisão")
+
+
+def grafico_limiar(curva: list[dict], modo: str):
+    df = tabela_limiar(curva)
+    longo = pd.concat([df.assign(serie=SERIE_PRECISAO, pct=df["precisao_pct"]), df.assign(serie=SERIE_RECALL, pct=df["recall_pct"])])
+    sup, tinta = cores.SUPERFICIE[modo], cores.TINTA[modo]
+    series = [SERIE_PRECISAO, SERIE_RECALL]
+    cor = alt.Color("serie:N", scale=alt.Scale(domain=series, range=cores.CATEGORICA[modo][:2]), legend=alt.Legend(title=None, labelLimit=320))
+    x = alt.X("limiar:Q", title="Limiar de risco para disparar o alerta", axis=_eixo_pt(".2f", values=list(df["limiar"])))
+    y = alt.Y("pct:Q", title="%", scale=alt.Scale(domain=[0, 100]))
+    tooltip = [alt.Tooltip("limiar:Q", title="Limiar", format=".2f"), alt.Tooltip("serie:N", title="Medida"), alt.Tooltip("pct:Q", title="%", format=".1f"),
+               alt.Tooltip("alertas_no_teste:Q", title="Alertas no teste", format=",")]
+    linhas = alt.Chart(longo).mark_line(strokeWidth=2).encode(x=x, y=y, color=cor)
+    pontos = alt.Chart(longo).mark_point(filled=True, size=80, stroke=sup, strokeWidth=2, opacity=1).encode(x=x, y=y, color=cor, tooltip=tooltip)
+    escolhido = df[df["escolhido"]]
+    regua = alt.Chart(escolhido).mark_rule(color=tinta["base"], strokeWidth=1).encode(x="limiar:Q")
+    nome = alt.Chart(escolhido.assign(t="limiar escolhido (F1 máximo na validação)")).mark_text(
+        align="left", dx=6, dy=-6, fontSize=11, color=tinta["muda"]).encode(x="limiar:Q", y=alt.value(12), text="t:N")
+    grafico = alt.layer(regua, nome, linhas, pontos).properties(title=titulo_limiar(curva), height=280, width="container")
+    return _base(grafico, modo)
+
+
+def tabela_calibracao(cal: list[dict]) -> pd.DataFrame:
+    return pd.DataFrame(cal)
+
+
+def titulo_calibracao(cal: list[dict]) -> str:
+    topo = cal[-1]
+    dif = max(abs(d["previsto_pct"] - d["observado_pct"]) for d in cal)
+    if dif <= 4:
+        return (f"As probabilidades são confiáveis: no decil de maior risco o modelo previu {_pt(topo['previsto_pct'], 1)}% "
+                f"e observou {_pt(topo['observado_pct'], 1)}%")
+    return f"As probabilidades se afastam do observado em até {_pt(dif, 1)} pontos: use o modelo só para ordenar"
+
+
+def grafico_calibracao(cal: list[dict], modo: str):
+    df = tabela_calibracao(cal)
+    sup, tinta = cores.SUPERFICIE[modo], cores.TINTA[modo]
+    teto = math.ceil(max(df["previsto_pct"].max(), df["observado_pct"].max()) * 1.15 / 5) * 5
+    escala = alt.Scale(domain=[0, teto])
+    x = alt.X("previsto_pct:Q", title="Risco previsto pelo modelo (%)", scale=escala, axis=alt.Axis(format=".0f"))
+    y = alt.Y("observado_pct:Q", title="Pausas observadas (%)", scale=escala, axis=alt.Axis(format=".0f"))
+    tooltip = [alt.Tooltip("decil:Q", title="Decil de risco (10 = maior)"), alt.Tooltip("households:Q", title="Households", format=","),
+               alt.Tooltip("previsto_pct:Q", title="Previsto (%)", format=".1f"), alt.Tooltip("observado_pct:Q", title="Observado (%)", format=".1f")]
+    diagonal = alt.Chart(pd.DataFrame({"a": [0, teto], "b": [0, teto]})).mark_line(color=tinta["base"], strokeWidth=1).encode(
+        x=alt.X("a:Q", scale=escala), y=alt.Y("b:Q", scale=escala))
+    pontos = alt.Chart(df).mark_point(filled=True, size=110, color=cores.DESTAQUE[modo], stroke=sup, strokeWidth=2, opacity=1).encode(x=x, y=y, tooltip=tooltip)
+    # O rótulo fica logo acima da diagonal, perto da ponta, e não flutuando no meio do gráfico.
+    nome = alt.Chart(pd.DataFrame({"a": [teto * 0.74], "b": [teto * 0.74], "t": ["calibração perfeita"]})).mark_text(
+        align="right", dx=-4, dy=-9, fontSize=11, color=tinta["muda"]).encode(x=alt.X("a:Q", scale=escala), y=alt.Y("b:Q", scale=escala), text="t:N")
+    grafico = alt.layer(diagonal, nome, pontos).properties(title=titulo_calibracao(cal), height=300, width="container")
+    return _base(grafico, modo)
+
+
+def tabela_fatores(fatores: list[dict]) -> pd.DataFrame:
+    return pd.DataFrame([{"fator": f["descricao"], "efeito": f["efeito"], "odds_ratio_por_dp": f["odds_ratio_por_dp"],
+                          "coeficiente_padronizado": f["coeficiente_padronizado"], "leitura": f["leitura"]} for f in fatores])
+
+
+def titulo_fatores(fatores: list[dict]) -> str:
+    f = fatores[0]
+    movimento = "o risco cai para" if f["odds_ratio_por_dp"] < 1 else "o risco sobe para"
+    return (f"O maior sinal é \"{f['descricao']}\": a cada desvio-padrão a mais, {movimento} {_pt(f['odds_ratio_por_dp'], 2)}x")
+
+
+def grafico_fatores(fatores: list[dict], modo: str):
+    df = tabela_fatores(fatores).assign(rotulo=lambda d: d["odds_ratio_por_dp"].map(lambda v: f"{_pt(v, 2)}x"))
+    ordem = list(df["fator"])
+    sup, tinta = cores.SUPERFICIE[modo], cores.TINTA[modo]
+    y = alt.Y("fator:N", sort=ordem, title=None, axis=alt.Axis(labelLimit=360, labelColor=tinta["secundaria"], ticks=False))
+    x = alt.X("odds_ratio_por_dp:Q", title="Odds de pausar por desvio-padrão do fator (1 = sem efeito)",
+              scale=alt.Scale(domain=[round(max(0.0, df["odds_ratio_por_dp"].min() - 0.15), 1), round(df["odds_ratio_por_dp"].max() + 0.3, 1)]),
+              axis=_eixo_pt(".1f", tickCount=6))
+    tooltip = [alt.Tooltip("fator:N", title="Fator"), alt.Tooltip("efeito:N", title="Efeito"), alt.Tooltip("odds_ratio_por_dp:Q", title="Odds ratio", format=".2f"),
+               alt.Tooltip("leitura:N", title="Leitura")]
+    referencia = alt.Chart(pd.DataFrame({"x": [1.0]})).mark_rule(color=tinta["base"], strokeWidth=1).encode(x="x:Q")
+    pontos = alt.Chart(df).mark_point(filled=True, size=130, color=cores.DESTAQUE[modo], stroke=sup, strokeWidth=2, opacity=1).encode(y=y, x=x, tooltip=tooltip)
+    rotulos = alt.Chart(df).mark_text(align="left", dx=10, fontSize=12, fontWeight=600).encode(y=y, x="odds_ratio_por_dp:Q", text="rotulo:N")
+    grafico = alt.layer(referencia, pontos, rotulos).properties(title=titulo_fatores(fatores), height=46 * len(df) + 40, width="container")
     return _base(grafico, modo)

@@ -68,6 +68,22 @@ analises:
     n_bootstrap: 2000
     nivel_ic: 0.95
     tamanho_minimo_grupo: 30   # grupo menor que isso na calibração: o resultado sai com aviso
+  churn:
+    # Churn = pausa longa: sem compra nas próximas `horizonte_semanas`. 8 semanas coincide com "cliente ativo" e com o limite
+    # de "Em pausa" (56 dias). Na base, 72% a 84% de quem pausa volta em 18 semanas: não é saída definitiva.
+    horizonte_semanas: 8
+    historico_minimo_semanas: 16   # população: comprou nas últimas `metricas.cliente_ativo_semanas` e tem esse histórico
+    janela_comportamento_semanas: 26
+    # Fotos temporais, como deslocamentos de `semana_fim_atual` (101): treino T=30..68, validação T=77, teste T=85 e 93.
+    treino_inicio_antes_do_fim: 71
+    treino_fim_antes_do_fim: 33
+    treino_passo_semanas: 4
+    validacao_antes_do_fim: 24
+    teste_antes_do_fim: [16, 8]
+    retorno_janela_semanas: 18     # quantas semanas depois da pausa se mede o retorno
+    l2_c: 1.0                      # logística com regularização L2, sem peso de classe (probabilidades calibradas)
+    n_bootstrap: 500
+    nivel_ic: 0.95
   coorte:
     # A entrada no painel acontece nas semanas 1-20 (99,2% dos households) e quase nada depois: com blocos de
     # 8 semanas só 2 coortes teriam tamanho útil, com 4 semanas há 5. Entrada no painel não é cliente novo.

@@ -3,6 +3,7 @@
 import json
 import re
 
+import numpy as np
 import pytest
 
 from src.config import CFG
@@ -251,6 +252,114 @@ def test_tabela_gemea_do_backtest_traz_o_total_e_a_regra_ingenua_do_grupo_sem_co
     assert list(df["grupo"]) == ["Fiéis", "Esporádicos", "Sem compra na janela", "Total"]
     assert df.loc[df["grupo"] == "Sem compra na janela", "erro_ingenuo_pct"].iloc[0] == -100.0
     assert df.loc[df["grupo"] == "Total", "households"].iloc[0] == 849 + 447 + 98
+
+
+# --- churn (pausa longa) ------------------------------------------------------------------------------------------
+
+def segmentos_churn():
+    s = lambda nome, n, risco, esp, alertas, valor: {"nome": nome, "households": n, "risco_medio_pct": risco, "pausas_esperadas": esp,
+                                                    "alertas": alertas, "valor_em_risco_usd": valor}
+    return [s("Fiéis", 857, 0.6, 5.2, 0, 2517.0), s("Regulares", 966, 4.5, 43.7, 20, 7157.0), s("Esporádicos", 380, 22.9, 87.1, 223, 3031.0)]
+
+
+def curva_churn():
+    return [{"limiar": t, "precisao": p, "recall": r, "alertas": a, "escolhido": t == 0.17}
+            for t, p, r, a in ((0.05, 0.17, 0.81, 1400), (0.10, 0.23, 0.67, 800), (0.17, 0.287, 0.481, 473), (0.30, 0.33, 0.23, 190), (0.50, 0.46, 0.06, 40))]
+
+
+def calibracao_exemplo(desvio=0.0):
+    prev = [0.2, 0.4, 0.8, 1.4, 2.4, 4.0, 7.0, 12.8, 20.0, 31.0]
+    return [{"decil": i + 1, "households": 440, "previsto_pct": p, "observado_pct": p + (desvio if i == 9 else 0.0)} for i, p in enumerate(prev)]
+
+
+def fatores_churn():
+    f = lambda v, desc, coef: {"variavel": v, "descricao": desc, "coeficiente_padronizado": coef, "odds_ratio_por_dp": float(np.exp(coef)),
+                               "efeito": "reduz o risco" if coef < 0 else "aumenta o risco",
+                               "leitura": f"{desc}: {'quanto maior, menor' if coef < 0 else 'quanto maior, maior'} o risco"}
+    return [f("semanas_com_compra_26s", "semanas com compra nas últimas 26 (constância)", -0.71), f("log_compras_8s", "compras nas últimas 8 semanas", -0.54),
+            f("recencia_semanas", "semanas desde a última compra", 0.28), f("maior_pausa_26s", "maior pausa seguida nas últimas 26 semanas", 0.16),
+            f("log_valor_26s", "gasto nas últimas 26 semanas", -0.14)]
+
+
+@pytest.mark.parametrize("modo", ["claro", "escuro"])
+@pytest.mark.parametrize("construir", [
+    lambda m: graficos.grafico_risco(segmentos_churn(), 8, m),
+    lambda m: graficos.grafico_limiar(curva_churn(), m),
+    lambda m: graficos.grafico_calibracao(calibracao_exemplo(), m),
+    lambda m: graficos.grafico_fatores(fatores_churn(), m)])
+def test_graficos_do_churn_so_usam_cores_da_paleta_e_grade_solida(construir, modo):
+    spec = espec(construir(modo))
+    assert hexes(spec) <= permitidos(modo) and "strokeDash" not in json.dumps(spec)
+    assert spec["config"]["view"]["stroke"] is None
+
+
+def test_risco_titulo_com_a_conclusao_uma_cor_e_rotulo_em_todas_as_barras():
+    assert graficos.titulo_risco(graficos.tabela_risco(segmentos_churn()), 8) == (
+        "Esporádicos têm 22,9% de risco de ficar 8 semanas sem comprar; Fiéis, 0,6%")
+    spec = espec(graficos.grafico_risco(segmentos_churn(), 8, "claro"))
+    barras = next(c for c in spec["layer"] if c["mark"]["type"] == "bar")
+    assert barras["mark"]["color"] == cores.DESTAQUE["claro"] and "color" not in barras["encoding"] and len(barras["encoding"]["tooltip"]) >= 7
+    texto = next(c for c in spec["layer"] if c["mark"]["type"] == "text")
+    assert sorted(d["rotulo"] for d in spec["datasets"][texto["data"]["name"]]) == ["0,6%", "22,9%", "4,5%"]
+
+
+def test_tabela_do_risco_mostra_onde_estao_as_pausas_e_onde_esta_o_dinheiro():
+    df = graficos.tabela_risco(segmentos_churn())
+    assert df["pct_das_pausas"].sum() == pytest.approx(100) and df["pct_do_valor_em_risco"].sum() == pytest.approx(100)
+    por = df.set_index("segmento")
+    assert por.loc["Esporádicos", "pct_das_pausas"] > por.loc["Regulares", "pct_das_pausas"]
+    assert por.loc["Regulares", "pct_do_valor_em_risco"] > por.loc["Esporádicos", "pct_do_valor_em_risco"]
+
+
+def test_limiar_duas_series_legenda_regua_no_escolhido_e_titulo_com_os_numeros():
+    assert graficos.titulo_limiar(curva_churn()) == ("No limiar 0,17, 29% dos alertas se confirmam e 48% das pausas são pegas; "
+                                                      "subir o limiar troca recall por precisão")
+    spec = espec(graficos.grafico_limiar(curva_churn(), "claro"))
+    linhas = next(c for c in spec["layer"] if c["mark"]["type"] == "line")
+    cor = linhas["encoding"]["color"]
+    assert cor["scale"]["domain"] == [graficos.SERIE_PRECISAO, graficos.SERIE_RECALL] and cor["scale"]["range"] == cores.CATEGORICA["claro"][:2]
+    assert cor["legend"] is not None
+    regua = next(c for c in spec["layer"] if c["mark"]["type"] == "rule")
+    assert spec["datasets"][regua["data"]["name"]][0]["limiar"] == 0.17 and "F1 máximo" in json.dumps(spec, ensure_ascii=False)
+
+
+def test_tabela_do_limiar_marca_um_unico_escolhido():
+    df = graficos.tabela_limiar(curva_churn())
+    assert int(df["escolhido"].sum()) == 1 and df.loc[df["escolhido"], "precisao_pct"].iloc[0] == pytest.approx(28.7)
+
+
+def test_calibracao_titulo_distingue_confiavel_de_desalinhada():
+    assert graficos.titulo_calibracao(calibracao_exemplo()).startswith("As probabilidades são confiáveis: no decil de maior risco o modelo previu 31,0%")
+    assert "se afastam do observado em até 9,0 pontos" in graficos.titulo_calibracao(calibracao_exemplo(desvio=-9.0))
+
+
+def test_calibracao_tem_diagonal_e_o_rotulo_fica_perto_dela():
+    spec = espec(graficos.grafico_calibracao(calibracao_exemplo(), "claro"))
+    nome = next(c for c in spec["layer"] if c["mark"]["type"] == "text")
+    ponto = spec["datasets"][nome["data"]["name"]][0]
+    assert ponto["a"] == pytest.approx(ponto["b"]) and "calibração perfeita" == ponto["t"]          # sobre a diagonal y = x
+    linha = next(c for c in spec["layer"] if c["mark"]["type"] == "line")
+    assert linha["encoding"]["x"]["scale"] == linha["encoding"]["y"]["scale"]                      # mesma escala nos dois eixos
+
+
+def test_fatores_referencia_em_um_rotulos_em_portugues_e_titulo_do_maior_sinal():
+    assert graficos.titulo_fatores(fatores_churn()) == ('O maior sinal é "semanas com compra nas últimas 26 (constância)": '
+                                                         'a cada desvio-padrão a mais, o risco cai para 0,49x')
+    spec = espec(graficos.grafico_fatores(fatores_churn(), "claro"))
+    referencia = next(c for c in spec["layer"] if c["mark"]["type"] == "rule")
+    assert spec["datasets"][referencia["data"]["name"]][0]["x"] == 1.0
+    texto = next(c for c in spec["layer"] if c["mark"]["type"] == "text")
+    assert sorted(d["rotulo"] for d in spec["datasets"][texto["data"]["name"]]) == ["0,49x", "0,58x", "0,87x", "1,17x", "1,32x"]
+    assert graficos.tabela_fatores(fatores_churn()).shape[0] == 5
+
+
+def test_eixos_numericos_com_decimal_ou_milhar_usam_o_formato_brasileiro():
+    """O Vega usa o formato americano; os rótulos são trocados por expressão para bater com os textos do app."""
+    construtores = {"limiar": lambda: graficos.grafico_limiar(curva_churn(), "claro"), "fatores": lambda: graficos.grafico_fatores(fatores_churn(), "claro"),
+                    "clv": lambda: graficos.grafico_clv(segmentos_clv(), "claro"), "ritmo": lambda: graficos.grafico_ritmo(segmentos_clv(), "claro"),
+                    "k": lambda: graficos.grafico_k(avaliacao(), 4, CFG_RFM, "claro")}
+    for nome, construir in construtores.items():
+        assert "replace(replace(replace(format(datum.value" in json.dumps(espec(construir())), nome
 
 
 def test_tabela_gemea_da_coorte_tem_uma_linha_por_celula():

@@ -119,12 +119,12 @@ venv\Scripts\python.exe baixar_dados.py                       # baixa data/raw/
 venv\Scripts\python.exe -m src.auditoria                      # relatorios/auditoria_fase1.md
 venv\Scripts\python.exe -m src.etl                            # ETL (~2 min): data/processed/dunnhumby.duckdb + relatorios/qualidade.md
 venv\Scripts\python.exe -m src.views                          # recria as views num banco existente (~10 s)
-venv\Scripts\python.exe -m pytest tests -q                    # testes (418 até a 5b; os da base completa pulam se o banco não existir)
+venv\Scripts\python.exe -m pytest tests -q                    # testes (488 até a 5c; os da base completa pulam se o banco não existir)
 # Em máquina com pouca memória (3,9 GB aqui) o suíte inteiro num só processo foi encerrado pelo sistema: rode por partes,
-# um processo cada: (1) test_cores test_cache test_graficos test_glossario test_eval test_views_sintetico (120)
+# um processo cada: (1) test_cores test_cache test_graficos test_glossario test_eval test_views_sintetico (136)
 # (2) test_nucleo_guardrails test_carga test_agente test_etl_regras (146) (3) test_etl_base_completa
-# test_views_base_completa (35) (4) test_rfm test_rfm_janelas test_rfm_base_completa (49) (5) test_clv (36)
-# (6) test_app (14), test_app_segmentos (9), test_app_clv (9), um por processo
+# test_views_base_completa (35) (4) test_rfm test_rfm_janelas test_rfm_base_completa (49) (5) test_clv (36) (6) test_churn (44)
+# (7) test_app (14), test_app_segmentos (9), test_app_clv (9), test_app_churn (10), um por processo
 venv\Scripts\python.exe -m streamlit run app/app.py           # app (carrega data/ ou data/raw/ sozinho; upload tem prioridade)
 venv\Scripts\python.exe -m eval.rodar_avaliacao --modo oraculo   # sem LLM: SQL esperado + glossário (eval/ULTIMO_ORACULO.md)
 set GROQ_API_KEY=...                                          # no SEU terminal; nunca colar a chave na conversa
@@ -270,3 +270,25 @@ Chave do Groq: variável `GROQ_API_KEY` (avaliação), `st.secrets["GROQ_API_KEY
 - 2026-10-06 — 5b (visual): três gráficos novos (CLV com IC, ritmo de gasto com referência em 1, backtest método x
   ingênua). O Vega-Lite funde as escalas de camadas com campos diferentes e perde a ordem dos grupos: todas as
   camadas de um gráfico usam o mesmo campo no eixo. Rótulos de barras negativas ficam fora da ponta.
+- 2026-10-06 — 5c (churn, aprovadas A-D): `prever_churn` mantém o nome da spec, mas o texto e a aba falam em **pausa longa
+  (churn de 8 semanas)**: dos households que passam 8 semanas sem comprar, 72% a 85% (80% no total, 1.338 pausas) voltam em
+  até 18 semanas. 8 semanas = 56 dias, o mesmo limite de "cliente ativo" e de "Em pausa". População: comprou nas últimas 8
+  semanas e tem >= 16 semanas de histórico; os 297 households já em pausa ficam fora e são reportados à parte.
+- 2026-10-06 — 5c (validação): fotos temporais como deslocamentos de `semana_fim_atual` (config `analises.churn`): treino
+  T=30,34,...,66 (rótulos até a 74), validação T=77 (define o limiar por F1 máximo), teste T=85 e 93 (rótulos 86-93 e
+  94-101, sem sobreposição). Regra simples "sem compra há k semanas" (k=4, escolhido no treino) sempre ao lado do modelo.
+  Resultado no teste: AUC 0,853 contra 0,738, IC95% da diferença [0,089; 0,150] (bootstrap por household), AUC-PR 0,272
+  contra 0,177 (prevalência 6,4%); limiar 0,17: precisão 0,29, recall 0,48. Calibração boa por decil (decil de maior risco:
+  previsto 31,1%, observado 29,6%). A precisão por alerta é modesta (29%).
+- 2026-10-06 — 5c (variáveis): 5 (recência em semanas, compras 8s, valor 26s, semanas com compra 26s, maior pausa 26s).
+  Com as 10 testadas o VIF chegava a 24,6 e "compras 26s" ganhava sinal positivo (artefato de colinearidade); com 5 o
+  AUC é igual (0,853), o VIF cai para 7,2 e os cinco sinais fazem sentido de negócio (constância é o maior protetor, OR
+  0,49 por desvio-padrão). Tendência, % de desconto, ticket e tempo no painel não acrescentam AUC.
+- 2026-10-06 — 5c (achado de negócio): o risco se concentra em quem gasta pouco: Fiéis 0,6%, Regulares 4,5%, Esporádicos
+  22,9% (pausas esperadas 5, 44, 87). As pausas se concentram nos Esporádicos (64%), mas o faturamento em risco está nos
+  Regulares (56% de US$ 12,7 mil em 8 semanas, 1,9% do período). O "e daí?" diz as duas coisas.
+- 2026-10-06 — 5c (visual e lições): quatro gráficos (risco por segmento, precisão x recall por limiar, calibração,
+  fatores em odds ratio). Rótulos dos eixos numéricos agora em formato brasileiro (`_eixo_pt`: o Vega usa o americano e
+  o Streamlit não expõe o locale). Texto: nunca usar `.replace(",", ".")` em frase inteira para formatar milhar (troca
+  também a vírgula decimal): formatar o milhar à parte. No painel sintético as 5 variáveis são quase colineares
+  (correlação até 0,96), então só a dominante tem sinal garantido nos testes; os 5 sinais são testados na base real.
