@@ -51,7 +51,7 @@ def textos_visiveis(at) -> str:
 def test_chat_e_a_primeira_aba(app):
     at = app.run()
     assert not at.exception
-    assert [t.label for t in at.tabs] == ["Chat", "Segmentos (RFM)", "Dados e qualidade"]
+    assert [t.label for t in at.tabs] == ["Chat", "Segmentos (RFM)", "Valor do cliente (CLV)", "Dados e qualidade"]
     assert len(at.chat_input) == 1
 
 

@@ -5,7 +5,8 @@ atual). Escolhas estatísticas (cada uma com o motivo no retorno e no README):
 - R em dias; F e V em log1p (valor tem cauda longa: p99 = 7x a mediana), tudo padronizado;
 - K pela regra combinada de config.yaml (silhueta + estabilidade + tamanho), escrita antes de rodar;
 - nomes dos segmentos derivados do perfil real, nunca de uma lista fixa por ordem;
-- households sem compra na janela ficam fora e são contados (já são perdas, e ignorá-los enviesaria).
+- households sem compra na janela ficam fora da segmentação e são contados (ignorá-los enviesaria); eles voltam a
+  aparecer no CLV, como grupo próprio.
 """
 
 import numpy as np
@@ -25,13 +26,14 @@ LADO = {  # nomes por quantidade de segmentos ativos (ordem: maior valor primeir
     4: ["Fiéis", "Regulares", "Ocasionais", "Esporádicos"],
     5: ["Fiéis", "Regulares", "Ocasionais", "Esporádicos", "Raros"],
 }
+NOME_PAUSA = "Em pausa"
 ACAO = {
     "Fiéis": "proteger com benefícios de fidelidade e acompanhar qualquer queda de frequência",
     "Regulares": "aumentar frequência e gasto por ida (ofertas cruzadas entre categorias)",
     "Ocasionais": "estimular a segunda compra do mês com ofertas de retorno",
-    "Esporádicos": "reativar com ofertas de retorno antes que se tornem inativos",
+    "Esporádicos": "reativar com ofertas de retorno antes que entrem em pausa longa",
     "Raros": "ações de baixo custo (mailer), sem investimento pesado",
-    "Inativos": "tentar recuperação de baixo custo; o valor que ainda geram é pequeno",
+    "Em pausa": "reativar com ofertas de retorno; pausa longa não é perda (a aba de CLV mostra quanto o grupo ainda vale)",
     "Base ativa": "acompanhar a evolução da frequência",
 }
 
@@ -54,10 +56,10 @@ def _milhar(n: int) -> str:
 
 # --------------------------------------------------------------------------- dados
 
-def carregar_base(cur) -> tuple[pd.DataFrame, list[dict]]:
-    """Households da janela atual e as exclusões, cada uma com a contagem e o motivo."""
-    df = cur.execute("SELECT household_key, recencia_dias, frequencia, valor, ticket_medio, pct_desconto, "
-                     "tem_demografia FROM vw_metricas_cliente WHERE periodo = 'atual' ORDER BY household_key").df()
+COLUNAS_BASE = ["household_key", "recencia_dias", "frequencia", "valor", "ticket_medio", "pct_desconto", "tem_demografia"]
+
+
+def _finalizar_base(cur, df: pd.DataFrame, janela: str) -> tuple[pd.DataFrame, list[dict]]:
     for coluna in ("recencia_dias", "frequencia", "valor", "ticket_medio", "pct_desconto"):
         df[coluna] = df[coluna].astype(float)
     total = cur.execute("SELECT COUNT(*) FROM dim_household").fetchone()[0]
@@ -65,10 +67,36 @@ def carregar_base(cur) -> tuple[pd.DataFrame, list[dict]]:
     nao_positivo = int((df["valor"] <= 0).sum())
     df = df[df["valor"] > 0].reset_index(drop=True)
     excluidos = [
-        {"motivo": "sem compra na janela atual (já são perdas; ignorá-los enviesaria o quadro)", "households": int(sem_compra)},
+        {"motivo": f"sem compra na janela {janela} (pausa total: ficam fora da segmentação, mas entram no CLV como grupo próprio)",
+         "households": int(sem_compra)},
         {"motivo": "valor líquido <= 0 na janela (devolução maior que a compra)", "households": nao_positivo},
     ]
     return df, excluidos
+
+
+def carregar_base(cur, periodo: str = "atual") -> tuple[pd.DataFrame, list[dict]]:
+    """Households de uma das duas janelas (atual ou base) lidos de vw_metricas_cliente, com as exclusões."""
+    if periodo not in ("atual", "base"):
+        raise ValueError("periodo precisa ser 'atual' ou 'base'")
+    df = cur.execute(f"SELECT {', '.join(COLUNAS_BASE)} FROM vw_metricas_cliente WHERE periodo = ? "
+                     "ORDER BY household_key", [periodo]).df()
+    return _finalizar_base(cur, df, periodo)
+
+
+def base_rfm(cur, semana_ini: int, semana_fim: int) -> tuple[pd.DataFrame, list[dict]]:
+    """R, F e V de uma janela qualquer de semanas, a partir de vw_cliente_semana. Nas janelas atual e base o
+    resultado é idêntico ao de vw_metricas_cliente (teste), para a definição não divergir."""
+    df = cur.execute("""
+        WITH fim AS (SELECT MAX(data) AS data_fim FROM dim_data WHERE WEEK_NO = ?),
+        s AS (SELECT household_key, SUM(faturamento) AS valor, SUM(cestas) AS frequencia, MAX(ultima_data) AS ultima,
+                     SUM(desconto_total) AS desconto, SUM(valor_bruto) AS bruto
+              FROM vw_cliente_semana WHERE WEEK_NO BETWEEN ? AND ? GROUP BY household_key)
+        SELECT s.household_key, date_diff('day', s.ultima, fim.data_fim) AS recencia_dias, s.frequencia, s.valor,
+               CAST(s.valor AS DOUBLE) / NULLIF(s.frequencia, 0) AS ticket_medio,
+               100.0 * CAST(s.desconto AS DOUBLE) / NULLIF(CAST(s.bruto AS DOUBLE), 0) AS pct_desconto, h.tem_demografia
+        FROM s CROSS JOIN fim LEFT JOIN dim_household h ON h.household_key = s.household_key
+        ORDER BY s.household_key""", [semana_fim, semana_ini, semana_fim]).df()
+    return _finalizar_base(cur, df, f"{semana_ini}-{semana_fim}")
 
 
 def matriz(df: pd.DataFrame) -> np.ndarray:
@@ -116,7 +144,7 @@ def escolher_k(tabela: pd.DataFrame, cfg: dict | None = None) -> tuple[int, str,
     if len(candidatos):
         k = int(candidatos.iloc[0]["k"])
         passaram = ", ".join(str(int(v)) for v in candidatos["k"])
-        extra = (f" A silhueta pura escolheria K={melhor_silhueta}, que só separa ativos de inativos."
+        extra = (f" A silhueta pura escolheria K={melhor_silhueta}, que só separa quem comprou há pouco de quem está em pausa."
                  if melhor_silhueta != k else "")
         return k, f"Regra combinada ({regra}). Passaram: K={passaram}. Escolhido K={k}.{extra}", True
     elegiveis = tabela[tabela["k"] >= cfg["k_min"]]
@@ -128,11 +156,11 @@ def escolher_k(tabela: pd.DataFrame, cfg: dict | None = None) -> tuple[int, str,
 # --------------------------------------------------------------------------- nomes e perfil
 
 def nomear(perfil: pd.DataFrame, limite_inativo_dias: float) -> dict[int, str]:
-    """Nomes derivados do perfil: recência alta = Inativos; os demais, por valor médio decrescente."""
+    """Nomes derivados do perfil: recência alta (>= limite) = Em pausa; os demais, por valor médio decrescente."""
     nomes: dict[int, str] = {}
     inativos = perfil[perfil["recencia_media_dias"] >= limite_inativo_dias].sort_values("recencia_media_dias", ascending=False)
     for i, seg in enumerate(inativos.index):
-        nomes[seg] = "Inativos" if i == 0 else f"Inativos ({i + 1})"
+        nomes[seg] = NOME_PAUSA if i == 0 else f"{NOME_PAUSA} ({i + 1})"
     ativos = perfil.drop(index=inativos.index).sort_values("valor_medio_usd", ascending=False)
     escada = LADO.get(len(ativos)) or [f"Valor nível {i + 1}" for i in range(len(ativos))]
     for seg, nome in zip(ativos.index, escada):
@@ -164,7 +192,7 @@ def montar_perfil(df: pd.DataFrame, rotulos: np.ndarray) -> pd.DataFrame:
 def montar_e_dai(segmentos: list[dict], k: int, silhueta: float, estab: dict, regra_cumprida: bool,
                  melhor_silhueta_k: int, n_excluidos: int, total_households: int) -> dict:
     topo = max(segmentos, key=lambda s: s["valor_medio_usd"])
-    inativos = next((s for s in segmentos if s["nome"] == "Inativos"), None)
+    em_pausa = next((s for s in segmentos if s["nome"] == NOME_PAUSA), None)
     ari = min(estab["ari_sementes_min"], estab["ari_subamostras_min"])
     conclusao = (f"{topo['nome']} são {_pct(topo['pct_households'])} dos households e fazem {_pct(topo['pct_faturamento'])} "
                  f"do faturamento da janela; {k} segmentos, com estabilidade mínima de {_num(ari)} (ARI).")
@@ -175,18 +203,32 @@ def montar_e_dai(segmentos: list[dict], k: int, silhueta: float, estab: dict, re
     perda_5pct = topo["valor_total_usd"] * 0.05
     impacto = (f"{topo['nome']} geram {_usd(topo['valor_total_usd'])} por janela de 26 semanas; perder 5% deles custa "
                f"cerca de {_usd(perda_5pct)}.")
-    if inativos:
-        impacto += (f" Os Inativos ({inativos['households']} households) ainda geram {_usd(inativos['valor_total_usd'])} "
-                    f"({_pct(inativos['pct_faturamento'], 1)}): recuperá-los move pouco o faturamento.")
+    if em_pausa:
+        impacto += (f" Os {NOME_PAUSA} ({em_pausa['households']} households) geram hoje {_usd(em_pausa['valor_total_usd'])} "
+                    f"({_pct(em_pausa['pct_faturamento'], 1)}) da janela; a aba de CLV mostra quanto voltam a valer.")
     n_hh = _milhar(total_households)
     limitacoes = (
         f"Painel de {n_hh} households frequentes, não o cliente médio do varejista; os segmentos descrevem as últimas "
-        f"26 semanas e mudam com a janela. {n_excluidos} households sem compra na janela ficam fora (já são perdas) e "
+        f"26 semanas e mudam com a janela. {n_excluidos} households sem compra na janela ficam fora da segmentação (pausa total; entram no CLV como grupo próprio) e "
         f"não aparecem como segmento. Silhueta de {_num(silhueta)}: estrutura moderada, as fronteiras entre segmentos são "
         "graduais. O K vem da regra combinada (silhueta, estabilidade, tamanho)"
         + (f", não só da silhueta, que sozinha escolheria K={melhor_silhueta_k}" if melhor_silhueta_k != k else "")
         + ". Segmento descreve comportamento, não causa.")
     return {"conclusao": conclusao, "acao_recomendada": acao, "impacto_estimado": impacto, "limitacoes": limitacoes}
+
+
+# --------------------------------------------------------------------------- ajuste dos segmentos
+
+def ajustar_segmentos(df: pd.DataFrame, k: int, semente: int | None = None, n_init: int | None = None):
+    """K-Means com K fixo, perfil e nomes derivados do perfil. Devolve (nome do segmento por linha de df, perfil)."""
+    cfg = CFG["analises"]["rfm"]
+    semente = CFG["semente"] if semente is None else semente
+    rotulos = KMeans(k, n_init=n_init or cfg["n_init"], random_state=semente).fit_predict(matriz(df))
+    perfil = montar_perfil(df, rotulos)
+    nomes = nomear(perfil, CFG["metricas"]["cliente_ativo_semanas"] * 7)
+    validar_nomes(nomes, k)
+    perfil["nome"] = pd.Series(nomes)
+    return pd.Series(rotulos).map(nomes).to_numpy(), perfil.sort_values("valor_medio_usd", ascending=False)
 
 
 # --------------------------------------------------------------------------- análise
@@ -205,13 +247,7 @@ def _calcular(cur, n_clusters: int | None) -> tuple[dict, pd.DataFrame]:
     else:
         k, metodo, cumprida = escolher_k(tabela, cfg)
     linha = tabela[tabela["k"] == k].iloc[0]
-    rotulos = KMeans(k, n_init=cfg["n_init"], random_state=semente).fit_predict(x)
-    perfil = montar_perfil(df, rotulos)
-    limite_inativo = CFG["metricas"]["cliente_ativo_semanas"] * 7
-    nomes = nomear(perfil, limite_inativo)
-    validar_nomes(nomes, k)
-    perfil["nome"] = pd.Series(nomes)
-    perfil = perfil.sort_values("valor_medio_usd", ascending=False)
+    nome_por_linha, perfil = ajustar_segmentos(df, k, semente, cfg["n_init"])
 
     segmentos = [{
         "nome": r["nome"], "households": int(r["households"]), "pct_households": round(float(r["pct_households"]), 1),
@@ -232,7 +268,7 @@ def _calcular(cur, n_clusters: int | None) -> tuple[dict, pd.DataFrame]:
         "excluidos": excluidos,
         "e_dai": montar_e_dai(segmentos, int(k), float(linha["silhueta"]), estab, cumprida, melhor_silhueta_k,
                               n_excluidos, total_households)}
-    atribuicao = df[["household_key"]].assign(segmento=pd.Series(rotulos).map(nomes).to_numpy())
+    atribuicao = df[["household_key"]].assign(segmento=nome_por_linha)
     return retorno, atribuicao
 
 

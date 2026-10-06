@@ -61,7 +61,7 @@ def renderizar(caminho_banco) -> None:
             f"- **K-Means** com semente fixa ({CFG['semente']}) e {CFG['analises']['rfm']['n_init']} inicializações.\n"
             f"- **Estabilidade:** {est['sementes']} sementes e {est['subamostras']} subamostras de "
             f"{int(est['fracao_subamostra'] * 100)}% (índice de Rand ajustado, ARI).\n"
-            "- **Nomes:** derivados do perfil de cada segmento (recência alta = inativos; os demais, por valor médio), "
+            "- **Nomes:** derivados do perfil de cada segmento (recência alta = em pausa; os demais, por valor médio), "
             "nunca de uma lista fixa por ordem do cluster.")
         st.markdown("**Households fora da análise**")
         st.dataframe(pd.DataFrame(r["excluidos"]).rename(columns={"motivo": "Motivo", "households": "Households"}),

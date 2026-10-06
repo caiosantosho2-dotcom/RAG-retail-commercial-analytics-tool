@@ -53,7 +53,7 @@ analises:
   rfm:
     # Regra de K, escrita antes de rodar (decisão da fase 5): entre K >= k_min, só entram os estáveis,
     # sem segmento pequeno demais e com estrutura minimamente visível; vence a maior silhueta.
-    k_avaliados: [2, 3, 4, 5, 6, 7, 8]   # K=2 é avaliado e mostrado, mas só separa ativos de inativos
+    k_avaliados: [2, 3, 4, 5, 6, 7, 8]   # K=2 é avaliado e mostrado, mas só separa quem comprou há pouco de quem está em pausa
     k_min: 3
     ari_minimo: 0.90          # estabilidade: ARI mínima entre sementes e entre subamostras
     tamanho_minimo_pct: 5.0   # menor segmento, em % dos households
@@ -62,6 +62,12 @@ analises:
     n_subamostras: 10
     fracao_subamostra: 0.8
     n_init: 10
+  clv:
+    margem: 0.25               # PREMISSA: o dataset não tem custo. Margem bruta típica de supermercado nos EUA: ~25%
+    horizonte_semanas: 52      # igual a janela.offset_ano_anterior: a coorte da janela base tem 52 semanas observadas
+    n_bootstrap: 2000
+    nivel_ic: 0.95
+    tamanho_minimo_grupo: 30   # grupo menor que isso na calibração: o resultado sai com aviso
   coorte:
     # A entrada no painel acontece nas semanas 1-20 (99,2% dos households) e quase nada depois: com blocos de
     # 8 semanas só 2 coortes teriam tamanho útil, com 4 semanas há 5. Entrada no painel não é cliente novo.

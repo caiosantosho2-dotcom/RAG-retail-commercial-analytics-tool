@@ -119,7 +119,12 @@ venv\Scripts\python.exe baixar_dados.py                       # baixa data/raw/
 venv\Scripts\python.exe -m src.auditoria                      # relatorios/auditoria_fase1.md
 venv\Scripts\python.exe -m src.etl                            # ETL (~2 min): data/processed/dunnhumby.duckdb + relatorios/qualidade.md
 venv\Scripts\python.exe -m src.views                          # recria as views num banco existente (~10 s)
-venv\Scripts\python.exe -m pytest tests -q                    # testes (~2,5 min, 266; os da base completa pulam se o banco não existir)
+venv\Scripts\python.exe -m pytest tests -q                    # testes (418 até a 5b; os da base completa pulam se o banco não existir)
+# Em máquina com pouca memória (3,9 GB aqui) o suíte inteiro num só processo foi encerrado pelo sistema: rode por partes,
+# um processo cada: (1) test_cores test_cache test_graficos test_glossario test_eval test_views_sintetico (120)
+# (2) test_nucleo_guardrails test_carga test_agente test_etl_regras (146) (3) test_etl_base_completa
+# test_views_base_completa (35) (4) test_rfm test_rfm_janelas test_rfm_base_completa (49) (5) test_clv (36)
+# (6) test_app (14), test_app_segmentos (9), test_app_clv (9), um por processo
 venv\Scripts\python.exe -m streamlit run app/app.py           # app (carrega data/ ou data/raw/ sozinho; upload tem prioridade)
 venv\Scripts\python.exe -m eval.rodar_avaliacao --modo oraculo   # sem LLM: SQL esperado + glossário (eval/ULTIMO_ORACULO.md)
 set GROQ_API_KEY=...                                          # no SEU terminal; nunca colar a chave na conversa
@@ -241,3 +246,27 @@ Chave do Groq: variável `GROQ_API_KEY` (avaliação), `st.secrets["GROQ_API_KEY
   heatmap, invertido no modo escuro; título = conclusão; versão em tabela de cada gráfico. Aba
   abre com o bloco "e daí?". Nova view `vw_cliente_semana` (histórico por household e semana);
   `ETL_VERSAO` = "4".
+- 2026-10-06 — 5b (correção da 5a, aprovada A e C): o grupo "Inativos" passa a se chamar **"Em pausa"** e a
+  frase "já são perdas" saiu dos textos. Motivo: dos 246 households com 56 dias ou mais sem comprar no fim da
+  janela base, 85% voltaram a comprar em 26 semanas e 97% em 52; dos 116 sem compra na janela base, 107 voltaram.
+  A ação do grupo passou a ser "reativar".
+- 2026-10-06 — 5b (CLV, aprovada B): método = margem x gasto médio das últimas 26 semanas x razão (gasto nas 52
+  semanas seguintes / gasto nas 26 anteriores) do mesmo segmento um ano antes (coorte da janela base, mesmo K e
+  mesmas regras de nome). Margem 25% e horizonte de 52 semanas são PREMISSAS (`analises.clv` no config; o
+  horizonte precisa ser igual ao deslocamento do ano anterior). Households sem compra na janela formam o grupo
+  "Sem compra na janela", estimado direto pelo gasto médio dos análogos do ano anterior; o total cobre os 2.500.
+  IC de 95% por bootstrap de households (2.000 reamostras, semente 42) nas duas coortes. Resultado: CLV por
+  household Fiéis US$ 820, Regulares US$ 326, Esporádicos US$ 135, Em pausa US$ 103, Sem compra US$ 99; total
+  US$ 1,10 M de margem (US$ 4,41 M de receita) em 52 semanas.
+- 2026-10-06 — 5b (backtest de 26 semanas): calibra em 24-49 -> 50-75, segmenta 50-75 e prevê 76-101. O método
+  errou 2,9% no total (regra ingênua "repetir o último período": 4,0%) e ganhou nos 5 grupos; por household o erro
+  absoluto médio é igual ao da regra ingênua (US$ 321 contra US$ 317): o CLV vale como média de grupo, não como
+  previsão individual. O horizonte de 52 semanas não tem backtest (só uma transição observável).
+- 2026-10-06 — 5b (RFM por janela): `rfm.base_rfm` calcula R, F e V de qualquer janela a partir de
+  `vw_cliente_semana` (coluna nova `ultima_data`); um teste exige resultado idêntico a `vw_metricas_cliente` nas
+  janelas atual e base. `rfm.ajustar_segmentos` é o ajuste único (K fixo, perfil, nomes). `ETL_VERSAO` = "5".
+- 2026-10-06 — 5b (bug): o `cache.obter` travava (deadlock) quando uma análise chamava outra, porque o trava era
+  um `Lock`; trocado por `RLock`, com teste de chamada aninhada. Lição: o `calcular_clv` chama o RFM por dentro.
+- 2026-10-06 — 5b (visual): três gráficos novos (CLV com IC, ritmo de gasto com referência em 1, backtest método x
+  ingênua). O Vega-Lite funde as escalas de camadas com campos diferentes e perde a ordem dos grupos: todas as
+  camadas de um gráfico usam o mesmo campo no eixo. Rótulos de barras negativas ficam fora da ponta.

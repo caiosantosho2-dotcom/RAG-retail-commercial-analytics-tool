@@ -158,13 +158,14 @@ LEFT JOIN dim_household h ON h.household_key = c.household_key
 
     ("vw_cliente_semana",
      "Uma linha por household e semana (WEEK_NO) com compra, desde a primeira semana até a última completa: "
-     "cestas, faturamento, itens, desconto e valor bruto. Definição única do histórico que alimenta coorte, "
-     "CLV e churn; as semanas não vêm limitadas às janelas atual e base.",
+     "cestas, faturamento, itens, desconto, valor bruto e a data da última compra na semana. Definição única do "
+     "histórico que alimenta coorte, CLV e churn (inclusive o RFM de qualquer janela); as semanas não vêm "
+     "limitadas às janelas atual e base.",
      """
 CREATE OR REPLACE VIEW vw_cliente_semana AS
 SELECT i.household_key, i.WEEK_NO,
        COUNT(DISTINCT i.BASKET_ID) AS cestas, SUM(i.faturamento) AS faturamento, SUM(i.quantidade) AS itens,
-       SUM(i.desconto_total) AS desconto_total, SUM(i.valor_bruto) AS valor_bruto
+       SUM(i.desconto_total) AS desconto_total, SUM(i.valor_bruto) AS valor_bruto, MAX(i.data) AS ultima_data
 FROM vw_vendas_item i CROSS JOIN vw_janela j
 WHERE i.WEEK_NO <= j.semana_fim_atual
 GROUP BY i.household_key, i.WEEK_NO

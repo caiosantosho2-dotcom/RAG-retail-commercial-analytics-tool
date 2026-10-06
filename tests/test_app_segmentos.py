@@ -44,7 +44,7 @@ def filhos(aba):
 @precisa_do_banco
 def test_a_aba_abre_sem_erro_com_tres_abas_e_o_chat_primeiro(tela_real):
     assert not tela_real.exception and not tela_real.error
-    assert [t.label for t in tela_real.tabs] == ["Chat", "Segmentos (RFM)", "Dados e qualidade"]
+    assert [t.label for t in tela_real.tabs] == ["Chat", "Segmentos (RFM)", "Valor do cliente (CLV)", "Dados e qualidade"]
     assert len(tela_real.chat_input) == 1
 
 
@@ -80,7 +80,7 @@ def test_a_aba_mostra_os_mesmos_numeros_da_ferramenta_e_do_chat(tela_real):
 
 @precisa_do_banco
 def test_os_tres_graficos_tem_titulo_com_a_conclusao(tela_real):
-    graficos_vega = tela_real.get("vega_lite_chart")
+    graficos_vega = tela_real.tabs[1].get("vega_lite_chart")
     assert len(graficos_vega) == 3
     titulos = [json.loads(g.proto.spec)["title"] for g in graficos_vega]
     titulos = [t["text"] if isinstance(t, dict) else t for t in titulos]

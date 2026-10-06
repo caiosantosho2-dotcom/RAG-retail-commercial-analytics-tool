@@ -171,6 +171,9 @@ def test_cliente_semana_cobre_todo_o_historico_ate_a_ultima_semana_completa(con)
                     "WHERE household_key = 1 AND WEEK_NO = 5")
     assert [float(x) for x in h1_s5] == [1.0, 14.0, 3.0, 1.0, 15.0]
     assert float(um(con, "SELECT faturamento FROM vw_cliente_semana WHERE household_key = 1 AND WEEK_NO = 1")[0]) == 99.0
+    # ultima_data = data da última compra do household naquela semana (dia 29 -> 2016-01-29; dia 1 -> 2016-01-01)
+    assert [str(x)[:10] for x in um(con, "SELECT ultima_data FROM vw_cliente_semana WHERE household_key = 1 AND WEEK_NO = 5")] == ["2016-01-29"]
+    assert str(um(con, "SELECT ultima_data FROM vw_cliente_semana WHERE household_key = 1 AND WEEK_NO = 1")[0])[:10] == "2016-01-01"
     assert dict(linhas(con, "SELECT household_key, COUNT(*) FROM vw_cliente_semana GROUP BY 1")) == {1: 4, 2: 2, 3: 2}
     # tem uma linha por household e semana, sem repetir
     assert um(con, "SELECT COUNT(*) - COUNT(DISTINCT (household_key, WEEK_NO)) FROM vw_cliente_semana")[0] == 0

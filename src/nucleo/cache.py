@@ -10,7 +10,7 @@ import json
 import threading
 
 _dados: dict[str, object] = {}
-_trava = threading.Lock()
+_trava = threading.RLock()   # reentrante: uma análise pode chamar outra (o CLV usa o RFM)
 
 
 def chave(cur, nome: str, **parametros) -> str:

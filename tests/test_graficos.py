@@ -15,7 +15,7 @@ def segmentos():
     mk = lambda nome, n, pct_hh, v, pct_f: dict(nome=nome, households=n, pct_households=pct_hh, valor_medio_usd=v,
                                                 valor_total_usd=n * v, pct_faturamento=pct_f)
     return [mk("Fiéis", 857, 35.4, 1780, 70.9), mk("Regulares", 980, 40.5, 568, 25.9),
-            mk("Esporádicos", 426, 17.6, 128, 2.5), mk("Inativos", 158, 6.5, 99, 0.7)]
+            mk("Esporádicos", 426, 17.6, 128, 2.5), mk("Em pausa", 158, 6.5, 99, 0.7)]
 
 
 def avaliacao():
@@ -108,7 +108,7 @@ def test_eixo_nao_desperdica_espaco_e_ordem_dos_segmentos_e_a_recebida():
     spec = espec(graficos.grafico_segmentos(segmentos(), "claro"))
     barras = next(c for c in spec["layer"] if c["mark"]["type"] == "bar")
     assert barras["encoding"]["x"]["scale"]["domain"] == [0, 80]                       # 71% + folga, não 0-100
-    assert barras["encoding"]["y"]["sort"] == ["Fiéis", "Regulares", "Esporádicos", "Inativos"]
+    assert barras["encoding"]["y"]["sort"] == ["Fiéis", "Regulares", "Esporádicos", "Em pausa"]
 
 
 # --- escolha de K -----------------------------------------------------------------------------------------
@@ -151,6 +151,106 @@ def test_heatmap_usa_escala_sequencial_de_0_a_100_com_um_matiz_e_o_escuro_invert
     claro = espec(graficos.grafico_coorte(coortes(), "claro"))["encoding"]["color"]["scale"]
     escuro = espec(graficos.grafico_coorte(coortes(), "escuro"))["encoding"]["color"]["scale"]
     assert claro["domain"] == [0, 100] and claro["range"] == cores.SEQ_AZUL and escuro["range"] == cores.SEQ_AZUL[::-1]
+
+
+# --- CLV ------------------------------------------------------------------------------------------------------
+
+def segmentos_clv():
+    mk = lambda nome, n, clv, ic, razao=None, ric=None: {
+        "nome": nome, "n": n, "clv_medio": clv, "ic_95": ic, "clv_total_usd": n * clv, "razao_futuro_passado": razao,
+        "razao_ic_95": ric, "ritmo_relativo": None if razao is None else razao / 2}
+    return [mk("Fiéis", 857, 820.0, [781.0, 860.0], 1.84, [1.75, 1.93]), mk("Regulares", 980, 326.0, [309.0, 344.0], 2.29, [2.2, 2.4]),
+            mk("Esporádicos", 426, 135.0, [120.0, 153.0], 4.2, [3.8, 4.7]), mk("Em pausa", 158, 103.0, [78.0, 133.0], 4.16, [3.4, 5.0]),
+            mk("Sem compra na janela", 79, 99.0, [78.0, 122.0])]
+
+
+def backtest_exemplo():
+    l = lambda nome, n, pm, pi, real: {"nome": nome, "households": n, "previsto_metodo_usd": pm, "previsto_ingenuo_usd": pi, "real_usd": real,
+                                       "erro_metodo_pct": 100 * (pm / real - 1), "erro_ingenuo_pct": 100 * (pi / real - 1)}
+    linhas = [l("Fiéis", 849, 1378541.0, 1469729.0, 1412575.0), l("Esporádicos", 447, 103871.0, 58301.0, 119578.0),
+              l("Sem compra na janela", 98, 11651.0, 0.0, 17143.0)]
+    tot = {c: sum(x[c] for x in linhas) for c in ("previsto_metodo_usd", "previsto_ingenuo_usd", "real_usd")}
+    tot["erro_metodo_pct"] = 100 * (tot["previsto_metodo_usd"] / tot["real_usd"] - 1)
+    tot["erro_ingenuo_pct"] = 100 * (tot["previsto_ingenuo_usd"] / tot["real_usd"] - 1)
+    return {"horizonte_semanas": 26, "segmentos": linhas, "total": tot}
+
+
+@pytest.mark.parametrize("modo", ["claro", "escuro"])
+@pytest.mark.parametrize("construir", [
+    lambda m: graficos.grafico_clv(segmentos_clv(), m),
+    lambda m: graficos.grafico_ritmo(segmentos_clv(), m),
+    lambda m: graficos.grafico_backtest(backtest_exemplo(), m)])
+def test_graficos_do_clv_so_usam_cores_da_paleta_e_grade_solida(construir, modo):
+    spec = espec(construir(modo))
+    assert hexes(spec) <= permitidos(modo) and "strokeDash" not in json.dumps(spec)
+    assert spec["config"]["view"]["stroke"] is None
+
+
+def test_titulo_do_clv_diz_a_conclusao_com_a_razao_entre_os_dois_maiores_grupos():
+    assert graficos.titulo_clv(segmentos_clv()) == "Um household do grupo Fiéis vale US$ 820 em 52 semanas, 2,5x um do grupo Regulares"
+    assert titulo(espec(graficos.grafico_clv(segmentos_clv(), "claro"))) == graficos.titulo_clv(segmentos_clv())
+
+
+def test_clv_uma_serie_uma_cor_barra_de_intervalo_e_rotulo_so_no_maior_grupo():
+    spec = espec(graficos.grafico_clv(segmentos_clv(), "claro"))
+    barras = next(c for c in spec["layer"] if c["mark"]["type"] == "bar")
+    assert barras["mark"]["color"] == cores.DESTAQUE["claro"] and barras["mark"]["cornerRadiusEnd"] == 4 and barras["mark"]["strokeWidth"] == 2
+    assert "color" not in barras["encoding"]                              # nominal: não pinta por valor
+    assert barras["encoding"]["y"]["sort"][0] == "Fiéis" and len(barras["encoding"]["tooltip"]) >= 5
+    regua = next(c for c in spec["layer"] if c["mark"]["type"] == "rule")
+    assert regua["encoding"]["x"]["field"] == "ic_inferior" and regua["encoding"]["x2"]["field"] == "ic_superior"
+    texto = next(c for c in spec["layer"] if c["mark"]["type"] == "text")
+    assert [d["segmento"] for d in spec["datasets"][texto["data"]["name"]]] == ["Fiéis"]
+
+
+def test_tabela_gemea_do_clv_tem_ic_e_total_de_cada_grupo():
+    df = graficos.tabela_clv(segmentos_clv())
+    assert len(df) == 5 and list(df["ic_inferior"][:2]) == [781.0, 309.0] and df.loc[0, "clv_total_usd"] == 857 * 820.0
+
+
+def test_ritmo_ignora_o_grupo_sem_razao_e_marca_a_referencia_em_um():
+    df = graficos.tabela_ritmo(segmentos_clv())
+    assert list(df["segmento"]) == ["Fiéis", "Regulares", "Esporádicos", "Em pausa"] and df.loc[0, "ritmo"] == 0.92
+    assert df.loc[0, "ic_inferior"] == pytest.approx(0.875) and df.loc[0, "ic_superior"] == pytest.approx(0.965)
+    spec = espec(graficos.grafico_ritmo(segmentos_clv(), "claro"))
+    referencia = next(c for c in spec["layer"] if c["mark"]["type"] == "rule" and "x2" not in c["encoding"])
+    assert spec["datasets"][referencia["data"]["name"]][0]["x"] == 1.0
+    assert "igual ao ritmo atual" in json.dumps(spec)
+
+
+def test_ritmo_mantem_a_ordem_dos_grupos_em_todas_as_camadas():
+    """As camadas compartilham o campo e a ordem do eixo y: com campos diferentes o Vega-Lite reordena os grupos."""
+    spec = espec(graficos.grafico_ritmo(segmentos_clv(), "claro"))
+    campos = {c["encoding"]["y"]["field"] for c in spec["layer"] if "y" in c["encoding"]}
+    ordens = {json.dumps(c["encoding"]["y"].get("sort")) for c in spec["layer"] if "y" in c["encoding"]}
+    assert campos == {"segmento"} and len(ordens) == 1
+
+
+def test_titulo_do_ritmo_nomeia_quem_gasta_acima_e_quem_fica_abaixo():
+    t = graficos.titulo_ritmo(graficos.tabela_ritmo(segmentos_clv()))
+    assert t == "Esporádicos e Em pausa gastam 2,1x o ritmo atual nas semanas seguintes; Fiéis, 0,92x"
+
+
+def test_backtest_titulo_legenda_curta_e_rotulo_fora_da_barra():
+    bt = backtest_exemplo()
+    comma = lambda v: f"{abs(v):.1f}".replace(".", ",")
+    esperado = (f"No teste de 26 semanas o método errou {comma(bt['total']['erro_metodo_pct'])}% no total; "
+                f"repetir o último período, {comma(bt['total']['erro_ingenuo_pct'])}%")
+    assert graficos.titulo_backtest(bt) == esperado
+    spec = espec(graficos.grafico_backtest(bt, "claro"))
+    barras = next(c for c in spec["layer"] if c["mark"]["type"] == "bar")
+    cor = barras["encoding"]["color"]
+    assert cor["scale"]["domain"] == [graficos.SERIE_INGENUA, graficos.SERIE_METODO] and cor["legend"] is not None
+    assert max(len(s) for s in cor["scale"]["domain"]) <= 26                               # cabe na legenda sem ser cortado
+    texto = next(c for c in spec["layer"] if c["mark"]["type"] == "text")
+    assert "datum.erro < 0" in json.dumps(texto["mark"]) and {d["grupo"] for d in spec["datasets"][texto["data"]["name"]]} == {"Total"}
+
+
+def test_tabela_gemea_do_backtest_traz_o_total_e_a_regra_ingenua_do_grupo_sem_compra():
+    df = graficos.tabela_backtest(backtest_exemplo())
+    assert list(df["grupo"]) == ["Fiéis", "Esporádicos", "Sem compra na janela", "Total"]
+    assert df.loc[df["grupo"] == "Sem compra na janela", "erro_ingenuo_pct"].iloc[0] == -100.0
+    assert df.loc[df["grupo"] == "Total", "households"].iloc[0] == 849 + 447 + 98
 
 
 def test_tabela_gemea_da_coorte_tem_uma_linha_por_celula():

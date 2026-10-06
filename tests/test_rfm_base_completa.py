@@ -27,13 +27,13 @@ def por_nome(r):
 def test_a_regra_escolhe_k4_e_os_quatro_nomes_batem_com_o_perfil(r):
     assert "erro" not in r and r["k_usado"] == 4 and r["regra_k_cumprida"] is True
     s = por_nome(r)
-    assert set(s) == {"Fiéis", "Regulares", "Esporádicos", "Inativos"}
-    # o nome descreve o perfil real: Fiéis têm o maior valor e frequência e a menor recência; Inativos, a maior recência
+    assert set(s) == {"Fiéis", "Regulares", "Esporádicos", "Em pausa"}
+    # o nome descreve o perfil real: Fiéis têm o maior valor e frequência e a menor recência; Em pausa, a maior recência
     assert s["Fiéis"]["valor_medio_usd"] == max(x["valor_medio_usd"] for x in s.values())
     assert s["Fiéis"]["frequencia_media"] == max(x["frequencia_media"] for x in s.values())
     assert s["Fiéis"]["recencia_media_dias"] == min(x["recencia_media_dias"] for x in s.values())
-    assert s["Inativos"]["recencia_media_dias"] == max(x["recencia_media_dias"] for x in s.values())
-    assert s["Inativos"]["recencia_media_dias"] >= CFG["metricas"]["cliente_ativo_semanas"] * 7
+    assert s["Em pausa"]["recencia_media_dias"] == max(x["recencia_media_dias"] for x in s.values())
+    assert s["Em pausa"]["recencia_media_dias"] >= CFG["metricas"]["cliente_ativo_semanas"] * 7
     ordem = [x["valor_medio_usd"] for x in r["segmentos"]]
     assert ordem == sorted(ordem, reverse=True)
 
@@ -74,7 +74,7 @@ def test_aba_e_chat_dao_o_mesmo_numero(r):
 def test_perfil_e_concentracao_plausiveis(r):
     s = por_nome(r)
     assert 30 <= s["Fiéis"]["pct_households"] <= 40 and 65 <= s["Fiéis"]["pct_faturamento"] <= 75     # 35% dos clientes, 71% do faturamento
-    assert s["Inativos"]["pct_faturamento"] < 2
+    assert s["Em pausa"]["pct_faturamento"] < 2
     for seg in s.values():
         assert 12 <= seg["desconto_medio_pct"] <= 20 and 15 <= seg["ticket_medio_usd"] <= 45
 

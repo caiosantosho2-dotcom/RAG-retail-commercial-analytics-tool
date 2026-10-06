@@ -149,3 +149,119 @@ def grafico_coorte(coortes: list[dict], modo: str):
                  alt.Tooltip("pct:Q", title="% que comprou", format=".1f")])
     grafico = celulas.properties(title=titulo_coorte(df), height=36 * len(ordem) + 40, width="container")
     return _base(grafico, modo)
+
+
+# --------------------------------------------------------------------------- CLV
+
+SERIE_METODO, SERIE_INGENUA = "Método da razão", "Repetir o último período"
+
+
+def tabela_clv(segs: list[dict]) -> pd.DataFrame:
+    return pd.DataFrame([{"segmento": s["nome"], "households": s["n"], "clv_medio_usd": s["clv_medio"], "ic_inferior": s["ic_95"][0],
+                          "ic_superior": s["ic_95"][1], "clv_total_usd": s["clv_total_usd"]} for s in segs])
+
+
+def titulo_clv(segs: list[dict]) -> str:
+    ordem = sorted(segs, key=lambda s: -s["clv_medio"])
+    topo, segundo = ordem[0], ordem[1]
+    return (f"Um household do grupo {topo['nome']} vale US$ {_pt(topo['clv_medio'])} em 52 semanas, "
+            f"{_pt(topo['clv_medio'] / segundo['clv_medio'], 1)}x um do grupo {segundo['nome']}")
+
+
+def grafico_clv(segs: list[dict], modo: str):
+    df = tabela_clv(segs)
+    ordem = list(df.sort_values("clv_medio_usd", ascending=False)["segmento"])
+    sup, tinta = cores.SUPERFICIE[modo], cores.TINTA[modo]
+    y = alt.Y("segmento:N", sort=ordem, title=None, axis=alt.Axis(labelLimit=240, labelColor=tinta["secundaria"], ticks=False))
+    x = alt.X("clv_medio_usd:Q", title="CLV por household em 52 semanas (US$, margem assumida)",
+              scale=alt.Scale(domain=[0, math.ceil(df["ic_superior"].max() * 1.12 / 100) * 100]), axis=alt.Axis(format=",.0f", tickCount=5))
+    tooltip = [alt.Tooltip("segmento:N", title="Grupo"), alt.Tooltip("households:Q", title="Households", format=","),
+               alt.Tooltip("clv_medio_usd:Q", title="CLV médio (US$)", format=",.0f"),
+               alt.Tooltip("ic_inferior:Q", title="IC 95% inferior", format=",.0f"), alt.Tooltip("ic_superior:Q", title="IC 95% superior", format=",.0f"),
+               alt.Tooltip("clv_total_usd:Q", title="CLV total do grupo (US$)", format=",.0f")]
+    barras = alt.Chart(df).mark_bar(cornerRadiusEnd=4, size=16, color=cores.DESTAQUE[modo], stroke=sup, strokeWidth=2).encode(y=y, x=x, tooltip=tooltip)
+    intervalo = alt.Chart(df).mark_rule(strokeWidth=2, color=tinta["primaria"]).encode(
+        y=y, x=alt.X("ic_inferior:Q"), x2="ic_superior:Q", tooltip=tooltip)
+    topo = df[df["segmento"] == ordem[0]].assign(rotulo=lambda d: d["clv_medio_usd"].map(lambda v: f"US$ {_pt(v)}"))
+    rotulo = alt.Chart(topo).mark_text(align="left", dx=8, fontSize=12, fontWeight=600).encode(y=y, x=alt.X("ic_superior:Q"), text="rotulo:N")
+    grafico = alt.layer(barras, intervalo, rotulo).properties(title=titulo_clv(segs), height=44 * len(df) + 30, width="container")
+    return _base(grafico, modo)
+
+
+def tabela_ritmo(segs: list[dict]) -> pd.DataFrame:
+    return pd.DataFrame([{"segmento": s["nome"], "ritmo": s["ritmo_relativo"], "ic_inferior": s["razao_ic_95"][0] / 2,
+                          "ic_superior": s["razao_ic_95"][1] / 2, "razao_futuro_passado": s["razao_futuro_passado"]}
+                         for s in segs if s.get("ritmo_relativo") is not None])
+
+
+def titulo_ritmo(df: pd.DataFrame) -> str:
+    acima = df[df["ritmo"] > 1.3].sort_values("ritmo", ascending=False)
+    abaixo = df[df["ritmo"] <= 1.3].sort_values("ritmo")
+    if len(acima) and len(abaixo):
+        return (f"{' e '.join(acima['segmento'])} gastam {_pt(acima['ritmo'].mean(), 1)}x o ritmo atual nas semanas seguintes; "
+                f"{abaixo.iloc[0]['segmento']}, {_pt(abaixo.iloc[0]['ritmo'], 2)}x")
+    return "O gasto das semanas seguintes fica perto do ritmo atual em todos os grupos"
+
+
+def grafico_ritmo(segs: list[dict], modo: str):
+    df = tabela_ritmo(segs)
+    ordem = list(df["segmento"])
+    sup, tinta = cores.SUPERFICIE[modo], cores.TINTA[modo]
+    y = alt.Y("segmento:N", sort=ordem, title=None, axis=alt.Axis(labelLimit=240, labelColor=tinta["secundaria"], ticks=False))
+    x = alt.X("ritmo:Q", title="Ritmo de gasto nas 52 semanas seguintes ÷ ritmo das últimas 26 semanas (1 = igual)",
+              scale=alt.Scale(domain=[0, math.ceil(df["ic_superior"].max() * 1.15 * 2) / 2]), axis=alt.Axis(format=".1f", tickCount=5))
+    tooltip = [alt.Tooltip("segmento:N", title="Grupo"), alt.Tooltip("ritmo:Q", title="Ritmo relativo", format=".2f"),
+               alt.Tooltip("ic_inferior:Q", title="IC 95% inferior", format=".2f"), alt.Tooltip("ic_superior:Q", title="IC 95% superior", format=".2f"),
+               alt.Tooltip("razao_futuro_passado:Q", title="Razão (52 sem ÷ 26 sem)", format=".2f")]
+    referencia = alt.Chart(pd.DataFrame({"x": [1.0]})).mark_rule(color=tinta["base"], strokeWidth=1).encode(x="x:Q")
+    # Mesmo campo e mesma escala do eixo y das outras camadas: com campos diferentes o Vega-Lite funde as escalas
+    # e perde a ordem dos grupos.
+    nome_ref = alt.Chart(pd.DataFrame({"x": [1.0], "t": ["igual ao ritmo atual"], "segmento": [ordem[-1]]})).mark_text(
+        align="left", dx=6, dy=-16, fontSize=11, color=tinta["muda"]).encode(x="x:Q", y=y, text="t:N")
+    intervalo = alt.Chart(df).mark_rule(strokeWidth=2, color=cores.CINZA[modo]).encode(y=y, x="ic_inferior:Q", x2="ic_superior:Q", tooltip=tooltip)
+    pontos = alt.Chart(df).mark_point(filled=True, size=130, color=cores.DESTAQUE[modo], stroke=sup, strokeWidth=2, opacity=1).encode(y=y, x=x, tooltip=tooltip)
+    grafico = alt.layer(referencia, nome_ref, intervalo, pontos).properties(title=titulo_ritmo(df), height=44 * len(df) + 40, width="container")
+    return _base(grafico, modo)
+
+
+def tabela_backtest(bt: dict) -> pd.DataFrame:
+    linhas = [{"grupo": l["nome"], "households": l["households"], "previsto_metodo_usd": l["previsto_metodo_usd"],
+               "previsto_ingenuo_usd": l["previsto_ingenuo_usd"], "real_usd": l["real_usd"],
+               "erro_metodo_pct": l["erro_metodo_pct"], "erro_ingenuo_pct": l["erro_ingenuo_pct"]} for l in bt["segmentos"]]
+    t = bt["total"]
+    linhas.append({"grupo": "Total", "households": sum(l["households"] for l in bt["segmentos"]), "previsto_metodo_usd": t["previsto_metodo_usd"],
+                   "previsto_ingenuo_usd": t["previsto_ingenuo_usd"], "real_usd": t["real_usd"], "erro_metodo_pct": t["erro_metodo_pct"],
+                   "erro_ingenuo_pct": t["erro_ingenuo_pct"]})
+    return pd.DataFrame(linhas)
+
+
+def titulo_backtest(bt: dict) -> str:
+    t = bt["total"]
+    return (f"No teste de {bt['horizonte_semanas']} semanas o método errou {_pt(abs(t['erro_metodo_pct']), 1)}% no total; "
+            f"repetir o último período, {_pt(abs(t['erro_ingenuo_pct']), 1)}%")
+
+
+def grafico_backtest(bt: dict, modo: str):
+    df = tabela_backtest(bt)
+    ordem = list(df["grupo"])
+    longo = pd.concat([df.assign(serie=SERIE_METODO, erro=df["erro_metodo_pct"]), df.assign(serie=SERIE_INGENUA, erro=df["erro_ingenuo_pct"])])
+    longo = longo.dropna(subset=["erro"])
+    sup, tinta = cores.SUPERFICIE[modo], cores.TINTA[modo]
+    series = [SERIE_INGENUA, SERIE_METODO]
+    cor = alt.Color("serie:N", scale=alt.Scale(domain=series, range=[cores.CINZA[modo], cores.DESTAQUE[modo]]), legend=alt.Legend(title=None))
+    y = alt.Y("grupo:N", sort=ordem, title=None, axis=alt.Axis(labelLimit=240, labelColor=tinta["secundaria"], ticks=False))
+    desloc = alt.YOffset("serie:N", sort=series)
+    minimo, maximo = float(longo["erro"].min()), float(longo["erro"].max())
+    x = alt.X("erro:Q", title="Erro da previsão (%)  ·  negativo = previu menos que o real",
+              scale=alt.Scale(domain=[math.floor((minimo - 8) / 10) * 10, math.ceil((maximo + 8) / 10) * 10]), axis=alt.Axis(format=".0f", tickCount=6))
+    tooltip = [alt.Tooltip("grupo:N", title="Grupo"), alt.Tooltip("serie:N", title="Previsão"), alt.Tooltip("erro:Q", title="Erro (%)", format=".1f"),
+               alt.Tooltip("real_usd:Q", title="Real (US$)", format=",.0f"), alt.Tooltip("households:Q", title="Households", format=",")]
+    barras = alt.Chart(longo).mark_bar(cornerRadius=4, size=12, stroke=sup, strokeWidth=2).encode(y=y, yOffset=desloc, x=x, color=cor, tooltip=tooltip)
+    zero = alt.Chart(pd.DataFrame({"x": [0]})).mark_rule(color=tinta["base"], strokeWidth=1).encode(x="x:Q")
+    total = longo[longo["grupo"] == "Total"].assign(rotulo=lambda d: d["erro"].map(lambda v: f"{_pt(v, 1)}%"))
+    # O rótulo fica fora da ponta da barra: à esquerda quando o erro é negativo, à direita quando é positivo.
+    rotulo = alt.Chart(total).mark_text(
+        align=alt.expr("datum.erro < 0 ? 'right' : 'left'"), dx=alt.expr("datum.erro < 0 ? -6 : 6"), fontSize=12, fontWeight=600
+    ).encode(y=y, yOffset=desloc, x="erro:Q", text="rotulo:N")
+    grafico = alt.layer(zero, barras, rotulo).properties(title=titulo_backtest(bt), height=52 * len(df) + 40, width="container")
+    return _base(grafico, modo)

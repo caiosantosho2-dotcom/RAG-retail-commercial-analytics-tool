@@ -88,7 +88,7 @@ def perfil(linhas):
 def test_nomes_vem_do_perfil_nao_da_ordem_dos_clusters():
     p = perfil([(10.6, 568), (108.5, 99), (3.2, 1780), (27.6, 128)])        # índices fora de ordem de propósito
     nomes = nomear(p, limite_inativo_dias=56)
-    assert nomes == {2: "Fiéis", 0: "Regulares", 3: "Esporádicos", 1: "Inativos"}
+    assert nomes == {2: "Fiéis", 0: "Regulares", 3: "Esporádicos", 1: "Em pausa"}
     validar_nomes(nomes, 4)
 
 
@@ -97,9 +97,9 @@ def test_tres_segmentos_ativos_e_nenhum_inativo():
     assert sorted(nomes.values()) == ["Esporádicos", "Fiéis", "Regulares"]
 
 
-def test_dois_inativos_ganham_nomes_diferentes():
+def test_dois_segmentos_em_pausa_ganham_nomes_diferentes():
     nomes = nomear(perfil([(70, 100), (120, 90), (4, 1500), (15, 400)]), 56)
-    assert nomes[1] == "Inativos" and nomes[0] == "Inativos (2)" and len(set(nomes.values())) == 4
+    assert nomes[1] == "Em pausa" and nomes[0] == "Em pausa (2)" and len(set(nomes.values())) == 4
 
 
 def test_muitos_segmentos_ativos_usam_nomes_de_nivel_sem_repetir():
@@ -127,14 +127,14 @@ def segmentos_exemplo():
     mk = lambda nome, n, pct_hh, v, pct_f: dict(nome=nome, households=n, pct_households=pct_hh, valor_medio_usd=v,
                                                 valor_total_usd=n * v, pct_faturamento=pct_f)
     return [mk("Fiéis", 857, 35.4, 1780, 70.9), mk("Regulares", 980, 40.5, 568, 25.9),
-            mk("Esporádicos", 426, 17.6, 128, 2.5), mk("Inativos", 158, 6.5, 99, 0.7)]
+            mk("Esporádicos", 426, 17.6, 128, 2.5), mk("Em pausa", 158, 6.5, 99, 0.7)]
 
 
 def test_e_dai_tem_os_quatro_blocos_com_numeros_e_sem_marcadores_soltos():
     e = montar_e_dai(segmentos_exemplo(), 4, 0.374, {"ari_sementes_min": 0.97, "ari_subamostras_min": 0.95}, True, 2, 79, 2500)
     assert set(e) == {"conclusao", "acao_recomendada", "impacto_estimado", "limitacoes"}
     assert "Fiéis são 35% dos households e fazem 71%" in e["conclusao"] and "0,95" in e["conclusao"]
-    assert "Fiéis" in e["acao_recomendada"] and "Inativos" in e["impacto_estimado"] and "US$" in e["impacto_estimado"]
+    assert "Fiéis" in e["acao_recomendada"] and "Em pausa" in e["impacto_estimado"] and "US$" in e["impacto_estimado"]
     assert "2.500 households" in e["limitacoes"] and "79 households" in e["limitacoes"] and "K=2" in e["limitacoes"]
     assert not any("{" in v or "}" in v for v in e.values())
 
@@ -167,7 +167,7 @@ def test_recupera_os_segmentos_plantados(ambiente):
     assert "erro" not in r and r["k_usado"] == 4 and r["regra_k_cumprida"] is True
     atrib = segmentos_por_household(banco.cursor()).merge(sc.gerar_clientes()[["household_key", "segmento_plantado"]], on="household_key")
     assert adjusted_rand_score(atrib["segmento_plantado"], atrib["segmento"]) >= 0.9
-    mapa = {"fieis": "Fiéis", "regulares": "Regulares", "esporadicos": "Esporádicos", "inativos": "Inativos"}
+    mapa = {"fieis": "Fiéis", "regulares": "Regulares", "esporadicos": "Esporádicos", "inativos": "Em pausa"}
     certo = np.mean([mapa[p] == s for p, s in zip(atrib["segmento_plantado"], atrib["segmento"])])
     assert certo >= 0.95        # os nomes saíram do perfil e caíram nos grupos certos
 
