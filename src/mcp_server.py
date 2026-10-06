@@ -51,7 +51,7 @@ def _compacta(funcao):
 
 
 def criar_servidor() -> FastMCP:
-    servidor = FastMCP(NOME)
+    servidor = FastMCP(NOME, log_level="WARNING")
     for nome, funcao in FERRAMENTAS.items():
         servidor.add_tool(_compacta(funcao), name=nome)
     return servidor

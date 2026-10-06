@@ -48,6 +48,9 @@ agente:
   max_iteracoes: 6
   glossario_top_k: 4
   glossario_limiar: 0.30
+  # Um processo do servidor MCP por sessão do app (~150 a 250 MB). Sem perguntas por este tempo, o processo é encerrado
+  # (o app abre outro na próxima pergunta): sessões abandonadas no navegador não acumulam memória.
+  mcp_ocioso_minutos: 20
 
 analises:
   rfm:

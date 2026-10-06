@@ -12,6 +12,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src import agente, carga, qualidade  # noqa: E402
+from src.cliente_mcp import ErroServidorMCP, ServidorMCP  # noqa: E402
 from src.config import CFG  # noqa: E402
 from src.etl import ErroCarga  # noqa: E402
 from src.token_counter import LIMITES_REFERENCIA_TPM, ContadorTokens  # noqa: E402
@@ -38,6 +39,8 @@ def _estado():
     s.setdefault("ultimos_tokens", {})
     s.setdefault("agente", None)
     s.setdefault("agente_ctx", None)
+    s.setdefault("servidor_mcp", None)
+    s.setdefault("modo_ferramentas", "mcp")
 
 
 def _carregar_dados(upload: dict[str, bytes] | None = None, silencioso: bool = False) -> bool:
@@ -62,6 +65,7 @@ def _carregar_dados(upload: dict[str, bytes] | None = None, silencioso: bool = F
     if antes is None or antes.versao_base != resultado.versao_base:
         st.session_state.mensagens = []
         st.session_state.agente = st.session_state.agente_ctx = None
+        _fechar_servidor()
     return True
 
 
@@ -72,11 +76,34 @@ def _segredo_groq() -> str:
         return ""
 
 
+def _fechar_servidor():
+    if st.session_state.servidor_mcp is not None:
+        st.session_state.servidor_mcp.fechar()
+    st.session_state.servidor_mcp = None
+
+
+def _obter_servidor():
+    """O servidor MCP desta sessão, aberto sob demanda (na primeira pergunta) e preso ao banco dela. Se não subir, as
+    funções do núcleo são chamadas direto: o chat continua funcionando e a barra lateral avisa."""
+    caminho = st.session_state.carga.caminho_banco
+    atual = st.session_state.servidor_mcp
+    if atual is not None and atual.aberto and atual.caminho_banco == Path(caminho).resolve():
+        return atual
+    _fechar_servidor()
+    try:
+        st.session_state.servidor_mcp = ServidorMCP(caminho_banco=caminho)
+        st.session_state.modo_ferramentas = "mcp"
+    except ErroServidorMCP:
+        st.session_state.modo_ferramentas = "direto"
+    return st.session_state.servidor_mcp
+
+
 def _obter_agente(chave: str, modelo: str):
-    ctx = (st.session_state.carga.versao_base, modelo, hash(chave))
+    servidor = _obter_servidor()
+    ctx = (st.session_state.carga.versao_base, modelo, hash(chave), id(servidor))
     if st.session_state.agente_ctx != ctx:
         st.session_state.agente = agente.criar_agente(
-            api_key=chave, modelo=modelo, caminho_banco=st.session_state.carga.caminho_banco)
+            api_key=chave, modelo=modelo, caminho_banco=st.session_state.carga.caminho_banco, servidor=servidor)
         st.session_state.agente_ctx = ctx
     return st.session_state.agente
 
@@ -208,6 +235,9 @@ def _barra_lateral() -> tuple[str, str]:
             # O campo é sempre desenhado: o Streamlit descarta o estado de widgets que somem entre execuções.
             chave = st.text_input("Chave do Groq", type="password", key="chave_groq",
                                   help="Grátis em console.groq.com. A chave fica só nesta sessão do navegador.")
+        if st.session_state.servidor_mcp is not None or st.session_state.modo_ferramentas == "direto":
+            st.caption("Ferramentas pelo servidor MCP." if st.session_state.modo_ferramentas == "mcp"
+                       else "Ferramentas em modo direto: o servidor MCP não iniciou nesta sessão.")
         st.divider()
         st.subheader("Uso de tokens")
         total = st.session_state.contador.resumo()

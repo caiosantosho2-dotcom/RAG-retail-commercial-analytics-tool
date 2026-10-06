@@ -103,7 +103,11 @@ def descrever_dados() -> dict:
 
 def catalogo_compacto() -> str:
     """Texto curto (views, colunas e janela) para o prompt do agente; economiza chamadas a descrever_dados."""
-    d = descrever_dados()
+    return compactar_catalogo(descrever_dados())
+
+
+def compactar_catalogo(d: dict) -> str:
+    """O mesmo texto a partir do retorno de descrever_dados (que o agente obtém pelo servidor MCP)."""
     if "erro" in d:
         return ""
     linhas = ["Views disponíveis (use sempre estas para métricas; colunas entre parênteses):"]

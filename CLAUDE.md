@@ -119,13 +119,13 @@ venv\Scripts\python.exe baixar_dados.py                       # baixa data/raw/
 venv\Scripts\python.exe -m src.auditoria                      # relatorios/auditoria_fase1.md
 venv\Scripts\python.exe -m src.etl                            # ETL (~2 min): data/processed/dunnhumby.duckdb + relatorios/qualidade.md
 venv\Scripts\python.exe -m src.views                          # recria as views num banco existente (~10 s)
-venv\Scripts\python.exe -m pytest tests -q                    # testes (549 até a 6a; os da base completa pulam se o banco não existir)
+venv\Scripts\python.exe -m pytest tests -q                    # testes (570 até a 6b; os da base completa pulam se o banco não existir)
 # Em máquina com pouca memória (3,9 GB aqui) o suíte inteiro num só processo foi encerrado pelo sistema: rode por partes,
 # um processo cada: (1) test_cores test_cache test_graficos test_glossario test_eval test_views_sintetico (146)
 # (2) test_nucleo_guardrails test_carga test_agente test_etl_regras (146) (3) test_etl_base_completa
 # test_views_base_completa (35) (4) test_rfm test_rfm_janelas test_rfm_base_completa (49) (5) test_clv (36) (6) test_churn (44) (7) test_teste_desconto (25)
 # (8) test_app (14), test_app_segmentos (9), test_app_clv (9), test_app_churn (10), test_app_desconto (9), um por processo
-# (9) test_mcp_server (17: sobe o servidor como subprocesso)
+# (9) test_mcp_server (17), test_agente_mcp (15), test_app_mcp (6): sobem o servidor como subprocesso (lentos: ~1 a 3 min cada)
 venv\Scripts\python.exe -m src.mcp_server                     # servidor MCP (stdio); ASSISTENTE_BANCO e ASSISTENTE_LOG opcionais
 venv\Scripts\python.exe -m streamlit run app/app.py           # app (carrega data/ ou data/raw/ sozinho; upload tem prioridade)
 venv\Scripts\python.exe -m eval.rodar_avaliacao --modo oraculo   # sem LLM: SQL esperado + glossário (eval/ULTIMO_ORACULO.md)
@@ -315,3 +315,14 @@ Chave do Groq: variável `GROQ_API_KEY` (avaliação), `st.secrets["GROQ_API_KEY
   compacto (o FastMCP indentaria com 2 espaços e gastaria tokens do plano gratuito). Erros de guard-rail seguem sendo dados
   (`{erro, sugestao}`, `isError` falso). Pelo MCP, na base real: descrever 0,2 s / 21 KB, segmentar 8,3 s, CLV 1,0 s, churn 8,6 s,
   desconto 0,6 s (cada 5 a 9 KB). Atenção: `descrever_dados` devolve ~21 KB (~6 mil tokens), pesado para o limite de 12 mil tokens/min.
+- 2026-10-06 — 6b (agente via MCP): `src/cliente_mcp.py` (`ServidorMCP`) abre um processo `src.mcp_server` por sessão do app, preso ao
+  banco dela (`ASSISTENTE_BANCO`), e entrega ao agente as 6 ferramentas pelo `langchain-mcp-adapters` (`load_mcp_tools`), com uma
+  entrada síncrona (a sessão stdio vive num laço asyncio numa thread de fundo, aberta e fechada pela mesma tarefa). O catálogo do
+  prompt também vem do servidor (`descrever_dados` -> `compactar_catalogo`). O servidor abre na primeira pergunta, fecha ao
+  recarregar a base e se encerra sozinho após 20 min sem uso (`agente.mcp_ocioso_minutos`: aba abandonada não acumula memória).
+  Se não subir, o chat usa as funções do núcleo direto e a barra lateral avisa ("modo direto"). Subida: ~6 s com cache de disco
+  quente (~30 s na primeira vez). Prompt: as 4 ferramentas de análise passam a ser chamadas pelo agente (antes dizia "veja as abas"),
+  respondendo com conclusão, ação e a principal limitação do `e_dai`.
+- 2026-10-06 — 6b (testes e memória): `tests/conftest.py` fecha os servidores abertos dentro de cada teste (cada AppTest com pergunta
+  abre um processo de ~150-250 MB; sem isso a suíte esgota a RAM de 3,9 GB). Lição: o relógio de ociosidade começa quando o servidor
+  fica pronto, não quando é criado (a subida leva mais que o limite dos testes).

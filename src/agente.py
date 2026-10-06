@@ -1,7 +1,8 @@
 """Agente do chat: pergunta em linguagem de negócio -> ferramentas -> resposta em texto.
 
-O modelo é criado só em `criar_modelo()`, para a troca ser em um lugar. As ferramentas aqui são as
-funções do núcleo; na fase 6 `ferramentas_do_nucleo()` passa a vir do servidor MCP, sem mudar o resto.
+O modelo é criado só em `criar_modelo()`, para a troca ser em um lugar. As ferramentas vêm do servidor MCP
+(`criar_agente(servidor=ServidorMCP(...))`, o caminho do app); `ferramentas_do_nucleo()` chama as funções direto e
+fica como reserva se o servidor não subir.
 O glossário é injetado na pergunta antes de chegar ao modelo (determinístico, não é ferramenta).
 """
 
@@ -17,10 +18,11 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import StructuredTool
 
 from src.config import CFG, RAIZ
+from src.cliente_mcp import texto_do_conteudo
 from src.glossario_rag import buscar_termos_relevantes
 from src.nucleo import banco, log
 from src.nucleo.consulta import executar_consulta
-from src.nucleo.descrever import catalogo_compacto, descrever_dados
+from src.nucleo.descrever import catalogo_compacto, compactar_catalogo, descrever_dados
 
 CAMINHO_USO = RAIZ / CFG["logs"]["uso_chat"]
 
@@ -35,7 +37,7 @@ Como trabalhar:
 6. Listagens de registros: LIMIT 20 (máximo 200). Prefira uma consulta agregada a várias consultas.
 7. Se a consulta falhar, leia o erro, corrija e tente de novo (no máximo duas vezes).
 8. Se a pergunta for ambígua (qual loja? qual período?), pergunte antes de consultar.
-9. Segmentação de clientes, CLV, churn e teste de desconto entre segmentos não são consultas SQL: diga que estão nas abas de análise do app.
+9. Segmentação de clientes, CLV, churn e teste de desconto entre segmentos NÃO são consultas SQL: use as ferramentas segmentar_clientes, calcular_clv, prever_churn e testar_desconto_entre_segmentos (sem argumentos, a menos que a pergunta peça um segmento). Elas trazem um bloco e_dai: responda com a conclusão, a ação recomendada e a limitação mais importante, em poucas frases, citando as premissas (margem do CLV, "churn" = pausa de 8 semanas, teste de desconto = diferença entre grupos, não causa). Não repita o retorno inteiro.
 10. Comece pela conclusão e dê o número com contexto (contra o ano anterior quando fizer sentido). Avise quando a loja tiver amostra_pequena = TRUE. Não existe vendedor: a menor unidade de equipe é a loja.
 
 {catalogo}"""
@@ -88,10 +90,15 @@ def criar_modelo(api_key: str, modelo: str | None = None):
 
 
 def criar_agente(api_key: str | None = None, modelo: str | None = None, llm=None, ferramentas=None,
-                 catalogo: str | None = None, caminho_banco: str | Path | None = None):
+                 catalogo: str | None = None, caminho_banco: str | Path | None = None, servidor=None):
     """Monta o agente. `llm` permite injetar um modelo pronto (testes); sem ele, usa o Groq.
-    `caminho_banco` prende as ferramentas e o catálogo ao banco de uma sessão."""
+    `caminho_banco` prende as ferramentas e o catálogo ao banco de uma sessão. Com `servidor` (ServidorMCP), as seis
+    ferramentas e o catálogo vêm do servidor MCP; sem ele, são as funções do núcleo chamadas direto."""
     llm = llm or criar_modelo(api_key, modelo)
+    if servidor is not None:
+        ferramentas = ferramentas or servidor.ferramentas
+        if catalogo is None:
+            catalogo = compactar_catalogo(servidor.chamar("descrever_dados"))
     if catalogo is None:
         with banco.usando(caminho_banco) if caminho_banco else contextlib.nullcontext():
             catalogo = catalogo_compacto()
@@ -123,9 +130,9 @@ def _extrair(mensagens, novas_a_partir_de: int) -> tuple[str, list[Consulta], li
                 texto = m.content if isinstance(m.content, str) else str(m.content)
         elif isinstance(m, ToolMessage) and m.name == "executar_consulta":
             try:
-                dado = json.loads(m.content)
+                dado = json.loads(texto_do_conteudo(m.content))
             except (TypeError, ValueError):
-                dado = {"erro": str(m.content)[:200]}
+                dado = {"erro": texto_do_conteudo(m.content)[:200]}
             consultas.append(Consulta(
                 sql=dado.get("sql_executado") or pedidos.get(m.tool_call_id, ""),
                 colunas=dado.get("colunas", []), linhas=dado.get("linhas", []),
