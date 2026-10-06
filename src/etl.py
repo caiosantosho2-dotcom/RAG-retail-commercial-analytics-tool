@@ -10,6 +10,7 @@ conferida antes e depois. O total limpo reconcilia com o bruto (por semana).
 Uso: python -m src.etl
 """
 
+import functools
 import hashlib
 import json
 from datetime import datetime
@@ -41,6 +42,14 @@ COLUNAS_OBRIGATORIAS = {
 }
 
 
+TIPOS_AUXILIARES = {
+    "campaign_table": {"household_key": "BIGINT", "CAMPAIGN": "BIGINT", "DESCRIPTION": "VARCHAR"},
+    "campaign_desc": {"CAMPAIGN": "BIGINT", "DESCRIPTION": "VARCHAR", "START_DAY": "INTEGER", "END_DAY": "INTEGER"},
+    "coupon": {"COUPON_UPC": "VARCHAR", "PRODUCT_ID": "BIGINT", "CAMPAIGN": "BIGINT"},
+    "coupon_redempt": {"household_key": "BIGINT", "DAY": "INTEGER", "COUPON_UPC": "VARCHAR", "CAMPAIGN": "BIGINT"},
+}
+
+
 class ErroCarga(Exception):
     """Falha de carga com mensagem legível para o usuário (arquivo, coluna, regra)."""
 
@@ -53,7 +62,8 @@ def _csv(caminho: Path) -> str:
     return f"read_csv({_lit(Path(caminho).as_posix())}, header=true, all_varchar=true)"
 
 
-def _md5(caminho: Path) -> str:
+@functools.lru_cache(maxsize=64)
+def _md5_do_arquivo(caminho: str, tamanho: int, modificado_ns: int) -> str:
     h = hashlib.md5()
     with open(caminho, "rb") as f:
         for bloco in iter(lambda: f.read(1 << 20), b""):
@@ -61,8 +71,24 @@ def _md5(caminho: Path) -> str:
     return h.hexdigest()
 
 
+def _md5(caminho: Path) -> str:
+    """MD5 do arquivo; guardado por (caminho, tamanho, data de modificação) para não reler 700 MB a cada sessão."""
+    info = Path(caminho).stat()
+    return _md5_do_arquivo(str(caminho), info.st_size, info.st_mtime_ns)
+
+
 def localizar_fontes(pasta: Path) -> dict[str, Path]:
     return {t: Path(pasta) / f"{t}.csv" for t in TABELAS}
+
+
+def colunas_faltantes(caminho: Path, tabela: str) -> list[str]:
+    """Colunas obrigatórias da tabela que não aparecem no cabeçalho do arquivo (sem diferenciar maiúsculas)."""
+    con = duckdb.connect()
+    try:
+        cols = [c.lower() for c in con.execute(f"SELECT * FROM {_csv(caminho)} LIMIT 0").df().columns]
+    finally:
+        con.close()
+    return [c for c in COLUNAS_OBRIGATORIAS[tabela] if c.lower() not in cols]
 
 
 def validar_fontes(fontes: dict[str, Path]) -> None:
@@ -70,13 +96,28 @@ def validar_fontes(fontes: dict[str, Path]) -> None:
     ausentes = [t for t in TABELAS if t not in fontes or not Path(fontes[t]).exists()]
     if ausentes:
         raise ErroCarga(f"Arquivos ausentes: {', '.join(t + '.csv' for t in ausentes)}.")
-    for tabela, obrig in COLUNAS_OBRIGATORIAS.items():
-        con = duckdb.connect()
-        cols = [c.lower() for c in con.execute(f"SELECT * FROM {_csv(fontes[tabela])} LIMIT 0").df().columns]
-        con.close()
-        faltam = [c for c in obrig if c.lower() not in cols]
+    for tabela in COLUNAS_OBRIGATORIAS:
+        faltam = colunas_faltantes(fontes[tabela], tabela)
         if faltam:
             raise ErroCarga(f"{tabela}.csv: faltam as colunas {', '.join(faltam)}.")
+
+
+# Muda quando a lógica de limpeza, do esquema ou das views muda: invalida bancos em cache.
+ETL_VERSAO = "3"
+
+
+def calcular_versao(fontes: dict[str, Path], cfg: dict | None = None) -> tuple[str, list[dict]]:
+    """Hash da carga: conteúdo dos arquivos + parâmetros que afetam o resultado + versão da lógica."""
+    cfg = cfg or CFG
+    arquivos = []
+    for t in TABELAS:
+        caminho = Path(fontes[t])
+        arquivos.append({"tabela": t, "arquivo": caminho.name, "md5": _md5(caminho),
+                         "tamanho_bytes": caminho.stat().st_size})
+    parametros = json.dumps({k: cfg.get(k) for k in ("dados", "janela", "metricas", "limpeza")},
+                            sort_keys=True, default=str)
+    base = "".join(a["md5"] for a in arquivos) + parametros + ETL_VERSAO
+    return hashlib.md5(base.encode()).hexdigest()[:12], arquivos
 
 
 def _n(con, sql: str):
@@ -132,12 +173,7 @@ def construir_banco(fontes: dict[str, Path], destino: Path | None = None, cfg: d
 
     # --- 1. Versão da base (hash dos arquivos) e log de cargas ------------------------------
     log("Calculando hash dos arquivos ...")
-    arquivos = []
-    for t in TABELAS:
-        caminho = Path(fontes[t])
-        arquivos.append({"tabela": t, "arquivo": caminho.name, "md5": _md5(caminho),
-                         "tamanho_bytes": caminho.stat().st_size})
-    versao_base = hashlib.md5("".join(a["md5"] for a in arquivos).encode()).hexdigest()[:12]
+    versao_base, arquivos = calcular_versao(fontes, cfg)
     rel.update(versao_base=versao_base, data_carga=data_carga.isoformat(), arquivos=arquivos)
 
     # --- 2. Estágio texto -> bruto tipado --------------------------------------------------
@@ -189,8 +225,18 @@ def construir_banco(fontes: dict[str, Path], destino: Path | None = None, cfg: d
                          "depois": _n(con, "SELECT COUNT(*) FROM dim_produto"),
                          "ok": n_prod_id == _n(con, "SELECT COUNT(*) FROM dim_produto")})
 
-    for t in ("campaign_table", "campaign_desc", "coupon", "coupon_redempt"):
-        con.execute(f"CREATE TABLE {t} AS SELECT * FROM read_csv({_lit(Path(fontes[t]).as_posix())}, header=true)")
+    # Tabelas auxiliares com tipos explícitos (um arquivo vazio faria o DuckDB inferir tudo como texto).
+    # Valor que não converte vira nulo, mas a quantidade vai para os avisos do relatório.
+    for t, tipos_aux in TIPOS_AUXILIARES.items():
+        origem = _csv(fontes[t])
+        con.execute(f"CREATE TABLE {t} AS SELECT "
+                    + ", ".join(f'TRY_CAST("{c}" AS {tp}) AS "{c}"' for c, tp in tipos_aux.items())
+                    + f" FROM {origem}")
+        for c, tp in tipos_aux.items():
+            perdidos = _n(con, f'SELECT COUNT(*) FROM {origem} WHERE "{c}" IS NOT NULL AND TRIM("{c}") <> \'\' '
+                               f'AND TRY_CAST("{c}" AS {tp}) IS NULL')
+            if perdidos:
+                rel["avisos"].append(f"{t}.{c}: {perdidos:,} valores não conversíveis para {tp} viraram nulos.")
 
     con.execute(f"""CREATE TABLE causal_semana_loja AS
         SELECT TRY_CAST(WEEK_NO AS INTEGER) AS WEEK_NO, TRY_CAST(STORE_ID AS BIGINT) AS STORE_ID,

@@ -25,3 +25,6 @@ logs/
 .DS_Store
 Thumbs.db
 .vscode/
+
+# Resultados da avaliação ao vivo (JSON por rodada); o resumo em Markdown é versionado
+eval/resultados/*.json

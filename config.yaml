@@ -31,3 +31,20 @@ consulta:
   limite_padrao: 20
   limite_maximo: 200
   timeout_segundos: 30
+  memoria_maxima: "1GB"       # teto de memória do DuckDB na conexão do agente
+  max_bytes_retorno: 60000    # nenhum retorno de ferramenta passa disso (controle de tokens)
+  # Tabelas que o agente enxerga (padrões). Ficam de fora raw_*, fato_ajustes, log_cargas, meta e _mat_*.
+  tabelas_permitidas: ["vw_*", "dim_*", "fato_transacoes", "campaign_*", "coupon*", "causal_semana_loja",
+                       "metricas_definicao"]
+
+logs:
+  chamadas: logs/chamadas.jsonl   # uma linha por chamada de ferramenta (fora do Git)
+  uso_chat: logs/uso_chat.jsonl   # pergunta, hora, SQL gerado e erro
+
+agente:
+  modelo: "llama-3.3-70b-versatile"
+  modelos_disponiveis: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
+  temperatura: 0
+  max_iteracoes: 6
+  glossario_top_k: 4
+  glossario_limiar: 0.30

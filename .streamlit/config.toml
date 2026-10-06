@@ -1,0 +1,7 @@
+[server]
+# A planilha de transações exportada do BI passa de 100 MB; o padrão do Streamlit (200 MB) serve,
+# mas deixamos folga para exportações maiores.
+maxUploadSize = 500
+
+[browser]
+gatherUsageStats = false

@@ -1,0 +1,230 @@
+# Conjunto de avaliação do chat (v1): 20 perguntas de negócio.
+#
+# Cada pergunta traz:
+#   regra            qual view/coluna a consulta correta deve usar (o que o prompt e o glossário precisam ensinar)
+#   ferramenta_esperada
+#   termos_glossario termos que a busca do glossário deve trazer entre os 4 primeiros
+#   sql_esperado     SQL escrito à mão sobre as views; o resultado define o valor esperado
+#   esperado         quais colunas/linhas do resultado a resposta precisa trazer (tipo: numero | id | texto)
+#   sanidade         faixa plausível do primeiro valor numérico: protege contra SQL esperado errado
+#
+# As perguntas maliciosas (apagar tabela, injeção, pedir a base inteira) entram na avaliação completa da
+# fase 6; os bloqueios no código já são testados em tests/test_nucleo_guardrails.py.
+
+- id: q01
+  pergunta: "Qual foi o faturamento total na janela atual?"
+  regra: "SUM(faturamento) de vw_metricas_cesta com periodo = 'atual' (todas as lojas)."
+  ferramenta_esperada: executar_consulta
+  termos_glossario: ["Faturamento", "Janela atual"]
+  sql_esperado: "SELECT SUM(faturamento) AS faturamento FROM vw_metricas_cesta WHERE periodo = 'atual'"
+  esperado: [{coluna: faturamento, tolerancia_rel: 0.005}]
+  sanidade: [1000000, 4000000]
+
+- id: q02
+  pergunta: "Qual o ticket médio da janela atual?"
+  regra: "Ticket = faturamento / cestas distintas: SUM(faturamento) / COUNT(*) em vw_metricas_cesta."
+  ferramenta_esperada: executar_consulta
+  termos_glossario: ["Ticket médio", "Janela atual"]
+  sql_esperado: "SELECT SUM(faturamento) / COUNT(*) AS ticket FROM vw_metricas_cesta WHERE periodo = 'atual'"
+  esperado: [{coluna: ticket}]
+  sanidade: [15, 60]
+
+- id: q03
+  pergunta: "Quantos itens por cesta, em média, na janela atual?"
+  regra: "Itens por cesta = SUM(itens) / COUNT(*) em vw_metricas_cesta."
+  ferramenta_esperada: executar_consulta
+  termos_glossario: ["Itens por cesta", "Janela atual"]
+  sql_esperado: "SELECT SUM(itens) / COUNT(*) AS itens_por_cesta FROM vw_metricas_cesta WHERE periodo = 'atual'"
+  esperado: [{coluna: itens_por_cesta}]
+  sanidade: [5, 30]
+
+- id: q04
+  pergunta: "Qual o percentual de desconto sobre o valor bruto na janela atual?"
+  regra: "100 * SUM(desconto_total) / SUM(valor_bruto): somar antes de dividir, nunca média de percentuais."
+  ferramenta_esperada: executar_consulta
+  termos_glossario: ["Percentual de desconto", "Janela atual"]
+  sql_esperado: "SELECT 100.0 * SUM(desconto_total) / SUM(valor_bruto) AS pct_desconto FROM vw_metricas_cesta WHERE periodo = 'atual'"
+  esperado: [{coluna: pct_desconto}]
+  sanidade: [5, 30]
+
+- id: q05
+  pergunta: "Quanto a loja 367 vendeu de laticínios no último mês?"
+  regra: "vw_vendas_item, STORE_ID = 367, periodo = 'atual', semana_alinhada >= vw_janela.semana_ini_ultimo_mes, COMMODITY_DESC na lista de laticínios do glossário."
+  ferramenta_esperada: executar_consulta
+  termos_glossario: ["Loja", "Laticínios", "Último mês", "Faturamento"]
+  sql_esperado: >
+    SELECT SUM(faturamento) AS faturamento FROM vw_vendas_item
+    WHERE STORE_ID = 367 AND periodo = 'atual'
+      AND semana_alinhada >= (SELECT semana_ini_ultimo_mes FROM vw_janela)
+      AND COMMODITY_DESC IN ('FLUID MILK PRODUCTS', 'MILK BY-PRODUCTS', 'CHEESE', 'CHEESES', 'YOGURT', 'BUTTER', 'MISC. DAIRY')
+  esperado: [{coluna: faturamento}]
+  sanidade: [100, 20000]
+
+- id: q06
+  pergunta: "Qual loja teve o maior ticket médio nas últimas 4 semanas?"
+  regra: "vw_metricas_loja_semana, semana_alinhada >= semana_ini_ultimo_mes, ticket = SUM(faturamento)/SUM(cestas) por loja, excluindo amostra_pequena (lojas com poucas cestas distorcem o ranking)."
+  ferramenta_esperada: executar_consulta
+  termos_glossario: ["Ticket médio", "Loja", "Último mês"]
+  sql_esperado: >
+    SELECT STORE_ID, SUM(faturamento) / SUM(cestas) AS ticket FROM vw_metricas_loja_semana
+    WHERE periodo = 'atual' AND semana_alinhada >= (SELECT semana_ini_ultimo_mes FROM vw_janela) AND NOT amostra_pequena
+    GROUP BY STORE_ID ORDER BY ticket DESC LIMIT 1
+  esperado: [{coluna: STORE_ID, tipo: id}, {coluna: ticket}]
+  sanidade: [20, 200]
+
+- id: q07
+  pergunta: "Quantos clientes compraram na loja 367 no último mês?"
+  regra: "COUNT(DISTINCT household_key) em vw_metricas_cesta (clientes não somam entre semanas), STORE_ID = 367, semana_alinhada >= semana_ini_ultimo_mes."
+  ferramenta_esperada: executar_consulta
+  termos_glossario: ["Clientes", "Loja", "Último mês"]
+  sql_esperado: >
+    SELECT COUNT(DISTINCT household_key) AS clientes FROM vw_metricas_cesta
+    WHERE STORE_ID = 367 AND periodo = 'atual' AND semana_alinhada >= (SELECT semana_ini_ultimo_mes FROM vw_janela)
+  esperado: [{coluna: clientes, tipo: id}]
+  sanidade: [10, 400]
+
+- id: q08
+  pergunta: "Qual departamento teve mais desconto de cupom na janela atual?"
+  regra: "SUM(desconto_cupom) de vw_vendas_item por DEPARTMENT (COUPON_DISC + COUPON_MATCH_DISC), periodo = 'atual'."
+  ferramenta_esperada: executar_consulta
+  termos_glossario: ["Desconto de cupom", "Categoria"]
+  sql_esperado: >
+    SELECT DEPARTMENT, SUM(desconto_cupom) AS desconto_cupom FROM vw_vendas_item WHERE periodo = 'atual'
+    GROUP BY DEPARTMENT ORDER BY desconto_cupom DESC LIMIT 1
+  esperado: [{coluna: DEPARTMENT, tipo: texto}, {coluna: desconto_cupom, tolerancia_rel: 0.02}]
+  sanidade: [100, 100000]
+
+- id: q09
+  pergunta: "Quais os 5 produtos que mais faturaram na categoria SOFT DRINKS na janela atual?"
+  regra: "vw_vendas_item, COMMODITY_DESC ILIKE '%SOFT DRINKS%', SUM(faturamento) por PRODUCT_ID, LIMIT 5."
+  ferramenta_esperada: executar_consulta
+  termos_glossario: ["Produto", "Categoria"]
+  sql_esperado: >
+    SELECT PRODUCT_ID, SUM(faturamento) AS faturamento FROM vw_vendas_item
+    WHERE periodo = 'atual' AND COMMODITY_DESC ILIKE '%SOFT DRINKS%'
+    GROUP BY PRODUCT_ID ORDER BY faturamento DESC LIMIT 5
+  esperado: [{coluna: PRODUCT_ID, tipo: id, linhas: 5}]
+  sanidade: [100, 100000]
+
+- id: q10
+  pergunta: "A venda da loja 367 caiu contra o ano passado por menos clientes, menos idas à loja ou menos gasto por ida?"
+  regra: "vw_yoy_loja (STORE_ID = 367): var_faturamento_pct, var_clientes_pct, var_cestas_pct e var_ticket_pct. A premissa está errada: o faturamento da loja subiu; a resposta precisa corrigir isso e decompor a variação."
+  ferramenta_esperada: executar_consulta
+  termos_glossario: ["Árvore de vendas", "Ano anterior"]
+  sql_esperado: "SELECT var_faturamento_pct, var_clientes_pct, var_cestas_pct, var_ticket_pct FROM vw_yoy_loja WHERE STORE_ID = 367"
+  esperado:
+    - {coluna: var_faturamento_pct, tolerancia_abs: 0.1}
+    - {coluna: var_clientes_pct, tolerancia_abs: 0.1}
+    - {coluna: var_cestas_pct, tolerancia_abs: 0.1}
+    - {coluna: var_ticket_pct, tolerancia_abs: 0.1}
+  sanidade: [-50, 50]
+
+- id: q11
+  pergunta: "Quanto a marca própria cresceu em laticínios contra o mesmo período do ano passado?"
+  regra: "vw_yoy_categoria, marca = 'Private', COMMODITY_DESC na lista de laticínios; crescimento = 100 * (SUM(faturamento_atual) / SUM(faturamento_base) - 1) somando antes de dividir."
+  ferramenta_esperada: executar_consulta
+  termos_glossario: ["Marca própria", "Laticínios", "Ano anterior"]
+  sql_esperado: >
+    SELECT 100.0 * (SUM(faturamento_atual) / SUM(faturamento_base) - 1) AS crescimento_pct FROM vw_yoy_categoria
+    WHERE marca = 'Private'
+      AND COMMODITY_DESC IN ('FLUID MILK PRODUCTS', 'MILK BY-PRODUCTS', 'CHEESE', 'CHEESES', 'YOGURT', 'BUTTER', 'MISC. DAIRY')
+  esperado: [{coluna: crescimento_pct, tolerancia_abs: 0.1}]
+  sanidade: [-50, 50]
+
+- id: q12
+  pergunta: "Qual a penetração da categoria CHEESE na janela atual?"
+  regra: "vw_yoy_categoria, COMMODITY_DESC = 'CHEESE', marca = 'TODAS', coluna penetracao_atual."
+  ferramenta_esperada: executar_consulta
+  termos_glossario: ["Penetração", "Categoria", "Janela atual"]
+  sql_esperado: "SELECT penetracao_atual FROM vw_yoy_categoria WHERE COMMODITY_DESC = 'CHEESE' AND marca = 'TODAS'"
+  esperado: [{coluna: penetracao_atual, tolerancia_abs: 0.1}]
+  sanidade: [10, 100]
+
+- id: q13
+  pergunta: "Qual a penetração da categoria FLUID MILK PRODUCTS no último trimestre?"
+  regra: "Período que não é a janela inteira: calcular em vw_vendas_item, periodo = 'atual', semana_alinhada >= semana_ini_ultimo_trimestre; clientes distintos da categoria / clientes distintos com qualquer compra."
+  ferramenta_esperada: executar_consulta
+  termos_glossario: ["Penetração", "Último trimestre", "Categoria"]
+  sql_esperado: >
+    SELECT 100.0 * COUNT(DISTINCT CASE WHEN COMMODITY_DESC = 'FLUID MILK PRODUCTS' THEN household_key END)
+           / COUNT(DISTINCT household_key) AS penetracao
+    FROM vw_vendas_item WHERE periodo = 'atual' AND semana_alinhada >= (SELECT semana_ini_ultimo_trimestre FROM vw_janela)
+  esperado: [{coluna: penetracao, tolerancia_abs: 0.1}]
+  sanidade: [10, 100]
+
+- id: q14
+  pergunta: "Quais os 3 produtos que mais faturam entre os clientes de alta frequência na janela atual?"
+  regra: "Alta frequência = frequencia acima do percentil 75 em vw_metricas_cliente (periodo = 'atual'); depois SUM(faturamento) por PRODUCT_ID em vw_vendas_item para esses households."
+  ferramenta_esperada: executar_consulta
+  termos_glossario: ["Cliente de alta frequência", "Produto"]
+  sql_esperado: >
+    WITH corte AS (SELECT quantile_cont(frequencia, 0.75) AS c FROM vw_metricas_cliente WHERE periodo = 'atual'),
+    hf AS (SELECT household_key FROM vw_metricas_cliente, corte WHERE periodo = 'atual' AND frequencia > c)
+    SELECT PRODUCT_ID, SUM(faturamento) AS faturamento FROM vw_vendas_item
+    WHERE periodo = 'atual' AND household_key IN (SELECT household_key FROM hf)
+    GROUP BY PRODUCT_ID ORDER BY faturamento DESC LIMIT 3
+  esperado: [{coluna: PRODUCT_ID, tipo: id, linhas: 3}]
+  sanidade: [100, 100000]
+
+- id: q15
+  pergunta: "Quantos departamentos concentram 80% do faturamento na janela atual?"
+  regra: "Curva ABC: faturamento por DEPARTMENT em vw_vendas_item, acumulado em ordem decrescente; contar até o primeiro departamento que fecha 80% ou mais."
+  ferramenta_esperada: executar_consulta
+  termos_glossario: ["Curva ABC", "Categoria", "Faturamento"]
+  sql_esperado: >
+    WITH d AS (SELECT DEPARTMENT, SUM(faturamento) AS v FROM vw_vendas_item WHERE periodo = 'atual' GROUP BY DEPARTMENT),
+    c AS (SELECT v, SUM(v) OVER (ORDER BY v DESC) / SUM(v) OVER () AS acum, ROW_NUMBER() OVER (ORDER BY v DESC) AS rn FROM d)
+    SELECT MIN(rn) AS departamentos FROM c WHERE acum >= 0.8
+  esperado: [{coluna: departamentos, tipo: id}]
+  sanidade: [1, 10]
+
+- id: q16
+  pergunta: "Quantos households resgataram cupom da campanha 18 e quanto esses households gastaram durante o período da campanha?"
+  regra: "coupon_redempt (CAMPAIGN = 18) para os households; gasto = SUM(faturamento) de vw_vendas_item desses households entre START_DAY e END_DAY de campaign_desc (data_id)."
+  ferramenta_esperada: executar_consulta
+  termos_glossario: ["Campanha"]
+  sql_esperado: >
+    WITH r AS (SELECT DISTINCT household_key FROM coupon_redempt WHERE CAMPAIGN = 18),
+    c AS (SELECT START_DAY, END_DAY FROM campaign_desc WHERE CAMPAIGN = 18)
+    SELECT (SELECT COUNT(*) FROM r) AS households, SUM(faturamento) AS gasto FROM vw_vendas_item, c
+    WHERE household_key IN (SELECT household_key FROM r) AND data_id BETWEEN START_DAY AND END_DAY
+  esperado: [{coluna: households, tipo: id}, {coluna: gasto, tolerancia_rel: 0.02}]
+  sanidade: [1000, 1000000]   # faixa do primeiro valor numérico: o gasto, não a contagem de households
+
+- id: q17
+  pergunta: "Quais as 3 lojas com maior faturamento na janela atual?"
+  regra: "vw_metricas_loja_semana, periodo = 'atual', SUM(faturamento) por STORE_ID, LIMIT 3."
+  ferramenta_esperada: executar_consulta
+  termos_glossario: ["Loja", "Faturamento", "Janela atual"]
+  sql_esperado: >
+    SELECT STORE_ID, SUM(faturamento) AS faturamento FROM vw_metricas_loja_semana WHERE periodo = 'atual'
+    GROUP BY STORE_ID ORDER BY faturamento DESC LIMIT 3
+  esperado: [{coluna: STORE_ID, tipo: id, linhas: 3}]
+  sanidade: [1, 100000]
+
+- id: q18
+  pergunta: "Quantas lojas só existem na janela atual e não existiam um ano antes?"
+  regra: "vw_yoy_resumo.lojas_so_atual (lojas com cesta na janela atual e nenhuma na base)."
+  ferramenta_esperada: executar_consulta
+  termos_glossario: ["Like-for-like", "Ano anterior", "Loja"]
+  sql_esperado: "SELECT lojas_so_atual FROM vw_yoy_resumo"
+  esperado: [{coluna: lojas_so_atual, tipo: id}]
+  sanidade: [1, 400]
+
+- id: q19
+  pergunta: "Qual a variação do faturamento contra o ano anterior nas mesmas lojas?"
+  regra: "vw_yoy_resumo.var_faturamento_pct (like-for-like), não a variação de todas as lojas."
+  ferramenta_esperada: executar_consulta
+  termos_glossario: ["Variação contra o ano anterior", "Like-for-like", "Ano anterior"]
+  sql_esperado: "SELECT var_faturamento_pct FROM vw_yoy_resumo"
+  esperado: [{coluna: var_faturamento_pct, tolerancia_abs: 0.1}]
+  sanidade: [-30, 30]
+
+- id: q20
+  pergunta: "Quantos clientes ativos temos na janela atual?"
+  regra: "SUM(cliente_ativo) em vw_metricas_cliente, periodo = 'atual' (compra nas últimas 8 semanas da janela)."
+  ferramenta_esperada: executar_consulta
+  termos_glossario: ["Cliente ativo", "Clientes", "Janela atual"]
+  sql_esperado: "SELECT COUNT(*) FILTER (WHERE cliente_ativo) AS clientes_ativos FROM vw_metricas_cliente WHERE periodo = 'atual'"
+  esperado: [{coluna: clientes_ativos, tipo: id}]
+  sanidade: [500, 2500]

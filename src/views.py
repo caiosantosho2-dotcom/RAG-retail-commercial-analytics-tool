@@ -318,6 +318,11 @@ FROM per p
 """),
 ]
 
+# Views caras guardam o resultado numa tabela `_mat_*` (medido antes: vw_yoy_categoria 9,6 s,
+# vw_metricas_cliente 2,8 s, vw_yoy_loja/resumo 2 a 5 s por recalcular a agregação de cestas).
+# O SQL continua único: a view é criada com a definição e só depois redirecionada.
+MATERIALIZAR = {"vw_metricas_cesta", "vw_yoy_categoria", "vw_metricas_cliente", "vw_yoy_loja", "vw_yoy_resumo"}
+
 # Métricas de negócio: nome, definição, fórmula, view de origem. Alimenta descrever_dados, o glossário e o README.
 METRICAS = [
     ("faturamento", "Valor líquido vendido, já depois de cupom e desconto de fidelidade (SALES_VALUE).",
@@ -344,9 +349,9 @@ METRICAS = [
     ("idas_por_cliente", "Frequência: cestas por cliente no período.",
      "COUNT(DISTINCT BASKET_ID) / COUNT(DISTINCT household_key)", "vw_yoy_resumo"),
     ("cliente_ativo", "Household com pelo menos uma compra nas últimas N semanas do período (N = 8).",
-     "ultima_semana >= semana_fim_do_periodo - N + 1", "vw_metricas_cliente"),
+     "coluna cliente_ativo (booleana): última compra dentro das últimas 8 semanas do período", "vw_metricas_cliente"),
     ("recencia_dias", "Dias entre a última compra do household e o último dia do período.",
-     "data_fim_periodo - MAX(data)", "vw_metricas_cliente"),
+     "coluna recencia_dias = dias entre a última compra e o último dia do período", "vw_metricas_cliente"),
     ("frequencia_cliente", "Número de cestas do household no período.", "COUNT(DISTINCT BASKET_ID)",
      "vw_metricas_cliente"),
     ("valor_cliente", "Faturamento do household no período.", "SUM(faturamento)", "vw_metricas_cliente"),
@@ -361,9 +366,11 @@ METRICAS = [
     ("variacao_ano_anterior", "Variação % da janela atual contra a base, nas lojas like-for-like.",
      "100 * (atual / base - 1)", "vw_yoy_resumo"),
     ("arvore_de_vendas", "Faturamento = clientes x idas por cliente x ticket médio; cada fator tem variação própria.",
-     "(1+var_clientes)*(1+var_idas)*(1+var_ticket) = 1+var_faturamento", "vw_yoy_resumo"),
+     "(1 + var_clientes_pct/100) * (1 + var_idas_por_cliente_pct/100) * (1 + var_ticket_pct/100) "
+     "= 1 + var_faturamento_pct/100", "vw_yoy_resumo"),
     ("penetracao", "% dos clientes (que compraram algo no período) que compraram a categoria.",
-     "100 * clientes_da_categoria / clientes_ativos_do_periodo", "vw_yoy_categoria"),
+     "colunas penetracao_atual e penetracao_base = 100 * clientes_atual (ou clientes_base) / clientes com "
+     "qualquer compra no período", "vw_yoy_categoria"),
     ("marca_propria", "Produtos com BRAND = 'Private'; os demais são 'National'.", "BRAND = 'Private'",
      "vw_yoy_categoria"),
     ("ultimo_mes", "As últimas 4 semanas completas da janela (relativas ao fim dos dados, não a hoje).",
@@ -371,7 +378,7 @@ METRICAS = [
     ("ultimo_trimestre", "As últimas 13 semanas completas da janela.",
      "semana_ini_ultimo_trimestre .. semana_fim_atual", "vw_janela"),
     ("amostra_pequena", "Loja com menos cestas na janela do que o mínimo configurado: números instáveis.",
-     "SUM(cestas) < loja_amostra_minima_cestas (100)", "vw_metricas_loja_semana"),
+     "coluna amostra_pequena = total de cestas da loja no período < 100", "vw_metricas_loja_semana"),
 ]
 
 
@@ -390,6 +397,11 @@ def criar_views(con, cfg: dict | None = None) -> list[str]:
     }
     for nome, descricao, sql in VIEWS:
         con.execute(sql.format(**parametros))
+        if nome in MATERIALIZAR:
+            # Mesma definição, resultado guardado: a view passa a ler da tabela `_mat_<nome>`.
+            con.execute(f"DROP TABLE IF EXISTS _mat_{nome}")
+            con.execute(f"CREATE TABLE _mat_{nome} AS SELECT * FROM {nome}")
+            con.execute(f"CREATE OR REPLACE VIEW {nome} AS SELECT * FROM _mat_{nome}")
         con.execute(f"COMMENT ON VIEW {nome} IS {_lit(descricao)}")
 
     con.execute("DROP TABLE IF EXISTS metricas_definicao")

@@ -1,6 +1,6 @@
 # Relatório de qualidade dos dados
 
-- **versao_base:** `e402c867f49e` · carga em 2026-10-05T20:10:10
+- **versao_base:** `17d41ea4520f` · carga em 2026-10-06T11:34:10
 - **Reconciliação com o bruto:** OK (102 semanas conferidas, 0 divergentes, maior diferença semanal US$ 0.0000)
 
 ## 1. Do bruto ao limpo

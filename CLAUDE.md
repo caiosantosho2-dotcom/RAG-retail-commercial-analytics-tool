@@ -118,10 +118,17 @@ set KAGGLE_API_TOKEN=...  (ou ~/.kaggle/kaggle.json)         # credencial, nunca
 venv\Scripts\python.exe baixar_dados.py                       # baixa data/raw/
 venv\Scripts\python.exe -m src.auditoria                      # relatorios/auditoria_fase1.md
 venv\Scripts\python.exe -m src.etl                            # ETL (~2 min): data/processed/dunnhumby.duckdb + relatorios/qualidade.md
-venv\Scripts\python.exe -m pytest tests -q                    # testes (~20 s; os da base completa pulam se o banco não existir)
+venv\Scripts\python.exe -m src.views                          # recria as views num banco existente (~10 s)
+venv\Scripts\python.exe -m pytest tests -q                    # testes (~2,5 min, 266; os da base completa pulam se o banco não existir)
+venv\Scripts\python.exe -m streamlit run app/app.py           # app (carrega data/ ou data/raw/ sozinho; upload tem prioridade)
+venv\Scripts\python.exe -m eval.rodar_avaliacao --modo oraculo   # sem LLM: SQL esperado + glossário (eval/ULTIMO_ORACULO.md)
+set GROQ_API_KEY=...                                          # no SEU terminal; nunca colar a chave na conversa
+venv\Scripts\python.exe -m eval.rodar_avaliacao --modo vivo      # com o agente: taxa de acerto, tokens, tempo (eval/ULTIMO_VIVO.md)
 ```
 
-(App e avaliação do chatbot: preencher nas fases 4 a 6.)
+Chave do Groq: variável `GROQ_API_KEY` (avaliação), `st.secrets["GROQ_API_KEY"]` (deploy) ou o campo da barra lateral.
+
+(Servidor MCP e avaliação com perguntas maliciosas: fase 6.)
 
 ## Decisões registradas
 
@@ -174,3 +181,39 @@ venv\Scripts\python.exe -m pytest tests -q                    # testes (~20 s; o
   `fato_ajustes`: validador por allowlist de tabelas referenciadas (o DuckDB read-only
   não restringe por tabela). Definições das métricas: tabela `metricas_definicao`
   (fonte do `descrever_dados`, do glossário e do README).
+- 2026-10-06 — Fase 4 (aprovadas A–C): (A) upload mínimo = `transaction_data` + `product`; as
+  outras seis tabelas são opcionais e entram vazias (com aviso do que deixa de existir).
+  (B) chave do Groq por `GROQ_API_KEY` no terminal do usuário. (C) views lentas materializadas
+  como `_mat_*` a partir do mesmo SQL (`views.MATERIALIZAR`): todas respondem em < 1 s.
+- 2026-10-06 — Glossário sem torch: o `torch` não carrega nesta máquina (falta o Visual C++
+  Redistributable 2015-2022; RAM 3,9 GB). Escolha do usuário: TF-IDF de n-gramas (scikit-learn),
+  mesma função `buscar_termos_relevantes`, mais bônus de 0,30 quando o termo ou um sinônimo
+  aparece na pergunta como palavra inteira. Pico de RAM do app com dados reais: 266 MB. O
+  conteúdo vem de `src/glossario_termos.py` e puxa fórmulas de `views.METRICAS` (fonte única);
+  não há termo "Vendedor" (não existe no dataset; a regra está no prompt).
+- 2026-10-06 — Guard-rails em camadas (`src/nucleo/consulta.py`): uma instrução (contada pelo
+  parser); só SELECT/WITH via `json_serialize_sql` (o tipo da instrução NÃO basta: `PRAGMA
+  version` aparece como SELECT); só fontes BASE_TABLE/JOIN/SUBQUERY/VALUES, sem funções de
+  tabela; allowlist de tabelas com escopo de CTE; motor read_only, sem acesso a arquivos,
+  configuração travada e memória limitada; limite 20/200 linhas, 60 KB e timeout de 30 s.
+  Tabelas visíveis: `vw_*`, `dim_*`, `fato_transacoes`, `campaign_*`, `coupon*`,
+  `causal_semana_loja`, `metricas_definicao` (a spec diz "views": pedir para atualizar a spec).
+- 2026-10-06 — Sessões isoladas: o app prende as ferramentas ao banco de cada sessão
+  (`banco.usando`, ContextVar); `banco.definir_banco` é só o padrão de scripts e testes.
+- 2026-10-06 — `versao_base` = hash dos arquivos + parâmetros do config (dados, janela, métricas,
+  limpeza) + `ETL_VERSAO` (hoje "3"): mudar parâmetro ou lógica invalida o cache. Hash dos
+  arquivos guardado em memória por (caminho, tamanho, mtime). Tabelas auxiliares com tipos
+  explícitos (arquivo vazio faria o DuckDB inferir texto).
+- 2026-10-06 — Negócio: laticínios = COMMODITY_DESC IN ('FLUID MILK PRODUCTS', 'MILK BY-PRODUCTS',
+  'CHEESE', 'CHEESES', 'YOGURT', 'BUTTER', 'MISC. DAIRY') (ovos e sorvete fora); cliente de alta
+  frequência = `frequencia` > percentil 75 do período; rankings de loja filtram
+  `amostra_pequena = FALSE`.
+- 2026-10-06 — Orçamento de tokens (estimado, ~3,6 caracteres/token): ~2.000 tokens fixos por
+  chamada ao modelo (prompt 1.800 + ferramentas 200), ~4.600 por pergunta com uma consulta,
+  retorno de 20 linhas ≈ 370. No limite de 12 mil tokens/min do plano gratuito: ~2,6
+  perguntas/min; a avaliação ao vivo espera entre perguntas.
+- 2026-10-06 — Avaliação v1 (`eval/`): 20 perguntas com SQL esperado à mão. Modo oráculo: 20/20
+  SQLs válidos e na faixa de sanidade; glossário traz os termos esperados em 20/20. A taxa de
+  acerto ao vivo depende de `GROQ_API_KEY` (pendente).
+- 2026-10-06 — App: abas "Chat" (primeira) e "Dados e qualidade"; as abas de análise entram na
+  fase 5 entre as duas, cada uma abrindo com o bloco "e daí?".
