@@ -17,7 +17,7 @@ from pathlib import Path
 
 import duckdb
 
-from src import qualidade
+from src import qualidade, views
 from src.config import CFG, RAIZ
 
 TABELAS = [
@@ -299,6 +299,9 @@ def construir_banco(fontes: dict[str, Path], destino: Path | None = None, cfg: d
     for k, v in {"versao_base": versao_base, "data_carga": data_carga.isoformat(),
                  "data_base": cfg["dados"]["data_base"]}.items():
         con.execute("INSERT INTO meta VALUES (?, ?)", [k, v])
+
+    log("Criando views de métricas ...")
+    views.criar_views(con, cfg)
 
     log("Gerando relatório de qualidade e reconciliando ...")
     rel = qualidade.completar_relatorio(con, rel, cfg)

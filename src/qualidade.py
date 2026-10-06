@@ -105,6 +105,11 @@ def completar_relatorio(con, rel: dict, cfg: dict) -> dict:
         "desconto_total_usd": desc,
         "desconto_pct_do_bruto": -desc / (vendas - desc) * 100,
     }
+    # Janela e comparação com o ano anterior: lidas das views, a mesma fonte do chat e das abas.
+    j = _q(con, "SELECT * FROM vw_janela").iloc[0].to_dict()
+    y = _q(con, "SELECT * FROM vw_yoy_resumo")
+    rel["janela"] = {k: (None if pd.isna(v) else v) for k, v in j.items()}
+    rel["yoy"] = ({k: (None if pd.isna(v) else v) for k, v in y.iloc[0].to_dict().items()} if len(y) else None)
     return json.loads(json.dumps(rel, default=str))
 
 
@@ -172,6 +177,20 @@ def renderizar_markdown(rel: dict) -> str:
          f"desconto: {sc['desconto_pct_do_bruto']:.1f}% do bruto "
          f"(US$ {-sc['desconto_total_usd']:,.0f} sobre US$ {sc['vendas_liquidas_usd']:,.0f} líquidos)",
          f"- {sc['nota']}", ""]
+    jan, yoy = rel["janela"], rel.get("yoy")
+    if jan.get("semana_ini_atual") is not None and yoy:
+        L += ["## 8. Janela e comparação com o ano anterior (lido das views)",
+              f"- Janela atual: semanas {jan['semana_ini_atual']}–{jan['semana_fim_atual']} · base: "
+              f"{jan['semana_ini_base']}–{jan['semana_fim_base']} (última semana da base, {jan['semana_max_base']}, "
+              "fica de fora por estar incompleta)",
+              f"- Lojas: {int(yoy['lojas_like_for_like'])} like-for-like de {int(yoy['lojas_atual'])} (atual) e "
+              f"{int(yoy['lojas_base'])} (base); só na atual: {int(yoy['lojas_so_atual'])} · "
+              f"só na base: {int(yoy['lojas_so_base'])}. "
+              f"As like-for-like cobrem {yoy['pct_vendas_atual_em_lfl']:.1f}% das vendas atuais e "
+              f"{yoy['pct_vendas_base_em_lfl']:.1f}% das da base.",
+              f"- Faturamento like-for-like: US$ {yoy['faturamento_atual']:,.0f} contra US$ {yoy['faturamento_base']:,.0f} "
+              f"({yoy['var_faturamento_pct']:+.1f}%) = clientes {yoy['var_clientes_pct']:+.1f}% · "
+              f"idas por cliente {yoy['var_idas_por_cliente_pct']:+.1f}% · ticket {yoy['var_ticket_pct']:+.1f}%", ""]
     if rel["avisos"]:
         L += ["## Avisos", *[f"- {a}" for a in rel["avisos"]], ""]
     return "\n".join(L)

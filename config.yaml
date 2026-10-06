@@ -9,9 +9,13 @@ dados:
   data_base: "2016-01-01"   # DAY=1 -> data_base + 0 dias; arbitrária (o dataset não tem calendário real)
 
 janela:
-  ignorar_semanas_finais: 1 # a última WEEK_NO (102) tem só 6 dias: fica fora da janela
-  semanas_atuais: 26        # N semanas completas, terminando em max(WEEK_NO) - ignorar_semanas_finais
+  # A janela termina na última WEEK_NO com 7 dias (decisão A da fase 3): hoje a 101, pois a 102 tem 6.
+  semanas_atuais: 26
   offset_ano_anterior: 52   # base de comparação: WEEK_NO - 52
+
+metricas:
+  cliente_ativo_semanas: 8        # >= 1 compra nas últimas N semanas do período (p95 do intervalo entre compras = 5 sem, p99 = 11)
+  loja_amostra_minima_cestas: 100 # loja com menos cestas na janela é marcada amostra_pequena (208 de 319 lojas, 1,1% do faturamento)
 
 banco:
   arquivo: data/processed/dunnhumby.duckdb

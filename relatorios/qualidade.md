@@ -1,6 +1,6 @@
 # Relatório de qualidade dos dados
 
-- **versao_base:** `e402c867f49e` · carga em 2026-10-05T19:52:21
+- **versao_base:** `e402c867f49e` · carga em 2026-10-05T20:10:10
 - **Reconciliação com o bruto:** OK (102 semanas conferidas, 0 divergentes, maior diferença semanal US$ 0.0000)
 
 ## 1. Do bruto ao limpo
@@ -79,3 +79,8 @@ Duplicados e órfãos: product_id_duplicado = 0, produto_orfao = 0, cesta_produt
 ## 7. Sanity check (provisório)
 - Ticket médio: US$ 29.39 · itens por cesta: 13.3 · desconto: 16.1% do bruto (US$ 1,417,355 sobre US$ 7,376,322 líquidos)
 - Provisório: a definição oficial vem das views da fase 3.
+
+## 8. Janela e comparação com o ano anterior (lido das views)
+- Janela atual: semanas 76–101 · base: 24–49 (última semana da base, 102, fica de fora por estar incompleta)
+- Lojas: 214 like-for-like de 319 (atual) e 327 (base); só na atual: 105 · só na base: 113. As like-for-like cobrem 96.1% das vendas atuais e 99.1% das da base.
+- Faturamento like-for-like: US$ 2,068,075 contra US$ 1,999,776 (+3.4%) = clientes +1.7% · idas por cliente -3.9% · ticket +5.8%

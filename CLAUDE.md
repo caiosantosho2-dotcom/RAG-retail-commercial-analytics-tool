@@ -157,3 +157,20 @@ venv\Scripts\python.exe -m pytest tests -q                    # testes (~20 s; o
 - 2026-10-05 — Fase 2: banco em `data/processed/dunnhumby.duckdb` (ignorado pelo Git).
   `causal_data` (36,8 M linhas) entra só agregada por semana e loja
   (`causal_semana_loja`). `fato_transacoes` não carrega WEEK_NO (vem de `dim_data`).
+- 2026-10-05 — Fase 3 (aprovadas A–D): (A) a janela termina na última WEEK_NO com 7 dias
+  (dinâmico, em `vw_janela`); `janela.ignorar_semanas_finais` saiu do config. (B) cliente
+  ativo = ≥ 1 compra nas últimas 8 semanas do período (p95 do intervalo entre compras = 5
+  semanas, p99 = 11; 91,1% dos households da janela atual ficam ativos). (C) like-for-like
+  só de lojas (≥ 1 cesta nos dois períodos); `clientes_nos_dois_periodos` à parte.
+  (D) `amostra_pequena` = loja com < 100 cestas na janela (211 de 319 lojas, 1,3% do
+  faturamento; as 104 lojas com ≥ 200 cestas fazem 97,6%). Parâmetros em `config.yaml`.
+- 2026-10-05 — Fase 3: descontos viram valores positivos nas views (desconto_total =
+  −(RETAIL + COUPON + MATCH); desconto_loja = RETAIL; desconto_cupom = COUPON + MATCH);
+  percentuais em 0–100; colunas das views em português (faturamento = SALES_VALUE,
+  quantidade = QUANTITY). As views agregadas só enxergam as duas janelas (a WEEK_NO 102
+  fica em `vw_vendas_item` com `periodo` nulo). "Último mês" = 4 semanas completas
+  terminando na semana final da janela; "último trimestre" = 13.
+- 2026-10-05 — Fase 3: `executar_consulta` (fase 4) não pode enxergar `raw_*` nem
+  `fato_ajustes`: validador por allowlist de tabelas referenciadas (o DuckDB read-only
+  não restringe por tabela). Definições das métricas: tabela `metricas_definicao`
+  (fonte do `descrever_dados`, do glossário e do README).
