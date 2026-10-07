@@ -113,22 +113,25 @@ escolha de produto, não limitação.
 Ambiente: Windows, `venv/` com Python 3.14. Rodar a partir da raiz.
 
 ```
-venv\Scripts\python.exe -m pip install -r requirements.txt   # instalar
+venv\Scripts\python.exe -m pip install -r requirements-dev.txt   # instalar tudo (testes, notebook); só o app: requirements.txt
+venv\Scripts\python.exe gerar_requirements.py              # regenera requirements.txt (app) e requirements-dev.txt a partir do ambiente
 set KAGGLE_API_TOKEN=...  (ou ~/.kaggle/kaggle.json)         # credencial, nunca no código
 venv\Scripts\python.exe baixar_dados.py                       # baixa data/raw/
 venv\Scripts\python.exe -m src.auditoria                      # relatorios/auditoria_fase1.md
 venv\Scripts\python.exe -m src.etl                            # ETL (~2 min): data/processed/dunnhumby.duckdb + relatorios/qualidade.md
+venv\Scripts\python.exe -m src.pacote exportar              # grava data/processed/parquet/ (versionado) a partir do banco do ETL; `verificar` confere
+venv\Scripts\python.exe -m src.documentacao                 # reescreve os blocos gerados do README (--verificar só confere)
 venv\Scripts\python.exe -m src.views                          # recria as views num banco existente (~10 s)
-venv\Scripts\python.exe -m pytest tests -q                    # testes (678 até a 7; os da base completa pulam se o banco não existir)
+venv\Scripts\python.exe -m pytest tests -q                    # testes (705 até a 8; os da base completa pulam se o banco não existir)
 # Em máquina com pouca memória (3,9 GB aqui) o suíte inteiro num só processo foi encerrado pelo sistema: rode por partes,
 # um processo cada: (1) test_cores test_cache test_graficos test_glossario test_views_sintetico test_ferramentas_formato test_skills_e_spec (180)
 # (2) test_nucleo_guardrails test_carga test_agente test_etl_regras (157) (3) test_etl_base_completa
 # test_views_base_completa (35) (4) test_rfm test_rfm_janelas test_rfm_base_completa (49) (5) test_clv (36) (6) test_churn (44) (7) test_teste_desconto (25)
 # (8) test_app (14), test_app_segmentos (9), test_app_clv (9), test_app_churn (10), test_app_desconto (9), um por processo
-# (9) test_mcp_server (17), test_agente_mcp (15), test_app_mcp (6), test_eval (52), test_notebook (11): sobem o servidor ou executam o notebook (lentos: ~1 a 3 min cada)
+# (9) test_mcp_server (19), test_agente_mcp (15), test_app_mcp (6), test_eval (52), test_notebook (12), test_pacote (11), test_readme (13): sobem o servidor, executam o notebook ou rodam as análises (lentos: ~1 a 3 min cada)
 venv\Scripts\python.exe -m src.mcp_server                     # servidor MCP (stdio); ASSISTENTE_BANCO e ASSISTENTE_LOG opcionais
 venv\Scripts\python.exe notebooks\construir_notebook.py       # monta, executa e salva o notebook narrado com as saídas (~1,5 min; precisa do banco)
-venv\Scripts\python.exe -m streamlit run app/app.py           # app (carrega data/ ou data/raw/ sozinho; upload tem prioridade)
+venv\Scripts\python.exe -m streamlit run app/app.py           # app (upload > CSV em data/ ou data/raw/ > pacote Parquet; carrega sozinho)
 venv\Scripts\python.exe -m eval.rodar_avaliacao --modo oraculo   # sem LLM: 20 SQLs esperados + 8 valores das ferramentas (eval/ULTIMO_ORACULO.md)
 venv\Scripts\python.exe -m eval.rodar_avaliacao --modo bloqueio  # sem LLM: 6 perguntas maliciosas + 40 cargas de ataque pelo MCP (eval/ULTIMO_BLOQUEIO.md)
 set GROQ_API_KEY=...                                          # no SEU terminal; nunca colar a chave na conversa
@@ -368,3 +371,24 @@ Chave do Groq: variável `GROQ_API_KEY` (avaliação), `st.secrets["GROQ_API_KEY
   ferramentas de hoje (avisa se ficar velho) e execução do zero reproduz exatamente os mesmos textos e números.
 - 2026-10-07 — Fase 7 (bug do cliente MCP): dentro do Jupyter o `ServidorMCP` não subia porque `sys.stderr` do kernel não tem descritor de arquivo; o
   erro do subprocesso agora vai para `os.devnull` (`errlog`). Isso também tira o log do servidor do console do app.
+- 2026-10-07 — Fase 8 (aprovadas A-F; C = sem prints de interface, só os gráficos do notebook; D = rodar o modo vivo antes de publicar):
+  (A) pacote de dados em Parquet com o **histórico inteiro**, não o recorte de duas janelas do guia (`data/processed/parquet/`, 18,3 MB, versionado):
+  o risco de pausa usa o histórico desde a semana 5, o CLV calibra um ano antes e a coorte usa a primeira compra, então só as duas janelas mudaria
+  os números. `src/pacote.py` (`exportar`, `verificar`, `carregar_pacote`); `carga.carregar` ganhou a terceira origem (upload > CSV nas pastas > pacote).
+  O manifesto guarda o MD5 dos CSV de origem: a `versao_base` do banco do pacote é a mesma do ETL enquanto parâmetros e `ETL_VERSAO` não mudarem
+  (`etl.versao_de_md5s`); se mudarem, o pacote fica velho e a carga recusa com a instrução de regerar. Teste: o banco do pacote é igual ao do ETL em
+  tabelas, views e nas 4 análises, campo a campo. Medido: carga do pacote 11,7 s, banco de 44 MB, 117 MB de RAM.
+- 2026-10-07 — Fase 8 (dependências e nuvem, aprovada B; Python 3.13 no deploy): `requirements.txt` agora é só o do app e do servidor MCP (89 pacotes,
+  fecho das dependências diretas, `pywin32` só com marcador de Windows); `requirements-dev.txt` traz o resto (`-r requirements.txt`). Ambos gerados por
+  `gerar_requirements.py`. Verificado sem acesso à nuvem: os 87 pacotes de Linux têm wheel em cp313 e cp312 (`pip download --platform manylinux`),
+  sem conflito nem dependência faltando sob os marcadores de Linux; o código parseia com a gramática 3.12. Teste: tudo o que `app/` e `src/` importam
+  está no requirements do app. Sessão fria simulada (cópia sem `data/raw` nem banco): abertura 49 s (carga + 4 análises), app 344 MB (pico 631 MB no
+  Windows), primeira pergunta 12,7 s, servidor MCP +238 MB (total ~600 MB). Cabem poucas sessões de chat no plano de ~1 GB.
+- 2026-10-07 — Fase 8 (servidor MCP logo depois do clone): sem `ASSISTENTE_BANCO` e sem o banco do ETL, `mcp_server.garantir_banco` constrói o banco do pacote
+  (~12 s na primeira vez). `ServidorMCP` e o servidor não importam duckdb diretamente.
+- 2026-10-07 — Fase 8 (README, aprovada E): `README.md` com as 15 seções do guia; oito blocos entre `<!-- gerado:NOME -->` são reescritos por
+  `python -m src.documentacao` (qualidade, métricas de `views.METRICAS`, resumos de `eval/ULTIMO_*.md`, estrutura de pastas e o "e daí?" das 4 análises, que vem
+  das ferramentas). `tests/test_readme.py` (13): seções, links e imagens, blocos em dia com as ferramentas de hoje, nada de "versão anterior" ou saída de emprego
+  (regra 8) no README, app, src e notebook, e números fixos do texto batem com o `config.yaml`. Os PNG do README são os do notebook (`notebooks/imagens/`,
+  extraídos por `construir_notebook.py`). Sem taxa de acerto do modelo no README enquanto `eval/ULTIMO_VIVO.md` não existir ("ainda não medido").
+  O endereço do app publicado fica como lembrete no topo até a publicação. Termos de uso do dataset: conferência do usuário (seção 15 do README).

@@ -170,3 +170,29 @@ def test_real_tabelas_do_banco_continuam_intactas_depois_das_tentativas_de_escri
         assert banco.cursor().execute("SELECT COUNT(*) FROM dim_household").fetchone()[0] == 2500
     finally:
         banco.fechar_todas()
+
+
+# --- servidor logo depois do clone: sem banco do ETL, usa o pacote Parquet --------------------------------------------
+
+def test_sem_banco_do_etl_o_servidor_constroi_o_banco_a_partir_do_pacote(tmp_path):
+    from src import pacote
+    if not pacote.existe():
+        pytest.skip("sem pacote Parquet")
+    anterior = banco._ativo
+    try:
+        usado = mcp_server.garantir_banco(padrao=tmp_path / "nao_existe.duckdb", pasta_bancos=tmp_path / "bancos")
+        assert usado is not None and usado.exists() and usado.parent == tmp_path / "bancos"
+        banco.definir_banco(usado)
+        r = executar_consulta("SELECT COUNT(*) AS n FROM dim_household")
+        assert r["linhas"] == [[2500]] and r["versao_base"] == pacote.ler_manifesto()["versao_base"]
+        assert mcp_server.garantir_banco(padrao=tmp_path / "nao_existe.duckdb", pasta_bancos=tmp_path / "bancos") == usado     # reaproveita
+    finally:
+        banco.fechar_todas()
+        banco.definir_banco(anterior)
+
+
+def test_com_banco_do_etl_nada_e_construido_e_sem_pacote_nem_banco_devolve_none(tmp_path):
+    existente = tmp_path / "ja_existe.duckdb"
+    existente.write_bytes(b"")
+    assert mcp_server.garantir_banco(padrao=existente) == existente
+    assert mcp_server.garantir_banco(padrao=tmp_path / "x.duckdb", pasta_pacote=tmp_path / "sem_pacote") is None

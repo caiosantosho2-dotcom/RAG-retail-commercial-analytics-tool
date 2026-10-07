@@ -162,3 +162,14 @@ def test_notebook_roda_do_zero_sem_erro_e_reproduz_o_arquivo_salvo(salvo):
     erros = [(i, o.ename) for i, c in enumerate(refeito.cells) for o in c.get("outputs", []) if o.output_type == "error"]
     assert not erros, erros
     assert textos_de_saida(refeito) == textos_de_saida(salvo)         # mesmos números, mesmos textos
+
+
+def test_imagens_do_readme_vem_do_notebook_salvo_e_sao_identicas_aos_graficos():
+    import base64
+    nomes = _construtor().NOMES_DAS_IMAGENS
+    salvo_ = nbformat.read(SALVO, as_version=4)
+    pngs = [o["data"]["image/png"] for c in salvo_.cells for o in c.get("outputs", []) if "image/png" in o.get("data", {})]
+    assert len(pngs) == len(nomes) == 13
+    for nome, png in zip(nomes, pngs):
+        arquivo = PASTA / "imagens" / f"{nome}.png"
+        assert arquivo.exists() and arquivo.read_bytes() == base64.b64decode(png), nome

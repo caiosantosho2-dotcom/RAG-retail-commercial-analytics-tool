@@ -19,7 +19,7 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from src import etl
+from src import etl, pacote
 from src.config import CFG, RAIZ
 from src.etl import COLUNAS_OBRIGATORIAS, TABELAS, ErroCarga
 from src.nucleo import banco
@@ -177,10 +177,27 @@ def _arquivos_da_pasta(pasta: Path) -> list[Path]:
     return sorted(p for p in pasta.glob("*") if p.is_file() and p.suffix.lower() in FORMATOS) if pasta.exists() else []
 
 
+def _carregar_do_pacote(pasta_pacote: Path | None, pasta_bancos: Path, cfg: dict, progresso) -> ResultadoCarga:
+    """Terceira origem: o pacote Parquet versionado no repositório (app publicado, sem os CSV). Mesma versão e mesmos números do ETL."""
+    m = pacote.verificar(pasta_pacote, cfg)
+    versao = m["versao_base"]
+    with _trava:
+        existente = _banco_da_versao(versao, pasta_bancos)
+        reaproveitado = existente is not None
+        alvo = existente or pasta_bancos / f"base_{versao}.duckdb"
+        if not reaproveitado:
+            progresso("Construindo o banco a partir do pacote de dados (Parquet) ...")
+            pacote.carregar_pacote(pasta_pacote, alvo, cfg, progresso)
+    banco.definir_banco(alvo)
+    resumo = resumir(alvo)
+    avisos = resumo.pop("avisos_etl")
+    return ResultadoCarga(alvo, versao, "pacote", reaproveitado, resumo, avisos)
+
+
 def carregar(upload: dict[str, bytes] | None = None, pastas: list[Path] | None = None,
              pasta_bancos: Path | None = None, cfg: dict | None = None,
-             progresso=lambda mensagem: None) -> ResultadoCarga:
-    """Carrega os dados e deixa o banco pronto para as ferramentas. Upload > pasta."""
+             progresso=lambda mensagem: None, pasta_pacote: Path | None = None) -> ResultadoCarga:
+    """Carrega os dados e deixa o banco pronto para as ferramentas. Prioridade: upload, CSV/Excel das pastas, pacote Parquet."""
     cfg = cfg or CFG
     pasta_bancos = Path(pasta_bancos or RAIZ / "data" / "processed")
     pasta_bancos.mkdir(parents=True, exist_ok=True)
@@ -201,6 +218,8 @@ def carregar(upload: dict[str, bytes] | None = None, pastas: list[Path] | None =
                 if any(_tabela_do_nome(p.name) in OBRIGATORIAS for p in _arquivos_da_pasta(pasta)):
                     arquivos = _arquivos_da_pasta(pasta)
                     break
+            if not arquivos and (pastas is None or pasta_pacote is not None) and pacote.existe(pasta_pacote):
+                return _carregar_do_pacote(pasta_pacote, pasta_bancos, cfg, progresso)
             if not arquivos:
                 raise ErroCarga("Nenhum dado encontrado. Arraste os arquivos exportados do BI para a tela de carga "
                                 "ou coloque-os na pasta data/.")

@@ -106,18 +106,22 @@ def validar_fontes(fontes: dict[str, Path]) -> None:
 ETL_VERSAO = "5"
 
 
+def versao_de_md5s(md5s: list[str], cfg: dict | None = None) -> str:
+    """Hash da carga a partir do MD5 de cada arquivo de origem (na ordem de TABELAS), dos parâmetros que afetam o resultado e da
+    versão da lógica. Separado de `calcular_versao` para o pacote Parquet reproduzir a mesma versão sem os CSV."""
+    cfg = cfg or CFG
+    parametros = json.dumps({k: cfg.get(k) for k in ("dados", "janela", "metricas", "limpeza")}, sort_keys=True, default=str)
+    return hashlib.md5(("".join(md5s) + parametros + ETL_VERSAO).encode()).hexdigest()[:12]
+
+
 def calcular_versao(fontes: dict[str, Path], cfg: dict | None = None) -> tuple[str, list[dict]]:
     """Hash da carga: conteúdo dos arquivos + parâmetros que afetam o resultado + versão da lógica."""
-    cfg = cfg or CFG
     arquivos = []
     for t in TABELAS:
         caminho = Path(fontes[t])
         arquivos.append({"tabela": t, "arquivo": caminho.name, "md5": _md5(caminho),
                          "tamanho_bytes": caminho.stat().st_size})
-    parametros = json.dumps({k: cfg.get(k) for k in ("dados", "janela", "metricas", "limpeza")},
-                            sort_keys=True, default=str)
-    base = "".join(a["md5"] for a in arquivos) + parametros + ETL_VERSAO
-    return hashlib.md5(base.encode()).hexdigest()[:12], arquivos
+    return versao_de_md5s([a["md5"] for a in arquivos], cfg), arquivos
 
 
 def _n(con, sql: str):

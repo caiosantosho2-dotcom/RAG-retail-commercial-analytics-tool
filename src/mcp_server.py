@@ -20,6 +20,8 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
+from src import carga, pacote
+from src.config import CFG, RAIZ
 from src.nucleo import banco, log
 from src.nucleo.churn import prever_churn
 from src.nucleo.clv import calcular_clv
@@ -57,9 +59,22 @@ def criar_servidor() -> FastMCP:
     return servidor
 
 
+def garantir_banco(padrao: Path | None = None, pasta_pacote: Path | None = None, pasta_bancos: Path | None = None) -> Path | None:
+    """Sem `ASSISTENTE_BANCO` e sem o banco do ETL, constrói (ou reaproveita) o banco a partir do pacote Parquet do repositório. Assim o
+    servidor funciona logo depois do `git clone`, sem baixar nada. Devolve o banco usado, ou None se não há de onde tirar dados."""
+    padrao = Path(padrao or RAIZ / CFG["banco"]["arquivo"])
+    if padrao.exists() or not pacote.existe(pasta_pacote):
+        return padrao if padrao.exists() else None
+    resultado = carga.carregar(pastas=[], pasta_bancos=pasta_bancos, pasta_pacote=pasta_pacote or pacote.PASTA)
+    banco.definir_banco(resultado.caminho_banco)
+    return resultado.caminho_banco
+
+
 def configurar_do_ambiente() -> None:
     if os.environ.get("ASSISTENTE_BANCO"):
         banco.definir_banco(os.environ["ASSISTENTE_BANCO"])
+    else:
+        garantir_banco()
     if os.environ.get("ASSISTENTE_LOG"):
         log.CAMINHO = Path(os.environ["ASSISTENTE_LOG"])
 
