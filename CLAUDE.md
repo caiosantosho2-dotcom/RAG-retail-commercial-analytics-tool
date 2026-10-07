@@ -119,14 +119,15 @@ venv\Scripts\python.exe baixar_dados.py                       # baixa data/raw/
 venv\Scripts\python.exe -m src.auditoria                      # relatorios/auditoria_fase1.md
 venv\Scripts\python.exe -m src.etl                            # ETL (~2 min): data/processed/dunnhumby.duckdb + relatorios/qualidade.md
 venv\Scripts\python.exe -m src.views                          # recria as views num banco existente (~10 s)
-venv\Scripts\python.exe -m pytest tests -q                    # testes (667 até a 6e; os da base completa pulam se o banco não existir)
+venv\Scripts\python.exe -m pytest tests -q                    # testes (678 até a 7; os da base completa pulam se o banco não existir)
 # Em máquina com pouca memória (3,9 GB aqui) o suíte inteiro num só processo foi encerrado pelo sistema: rode por partes,
 # um processo cada: (1) test_cores test_cache test_graficos test_glossario test_views_sintetico test_ferramentas_formato test_skills_e_spec (180)
 # (2) test_nucleo_guardrails test_carga test_agente test_etl_regras (157) (3) test_etl_base_completa
 # test_views_base_completa (35) (4) test_rfm test_rfm_janelas test_rfm_base_completa (49) (5) test_clv (36) (6) test_churn (44) (7) test_teste_desconto (25)
 # (8) test_app (14), test_app_segmentos (9), test_app_clv (9), test_app_churn (10), test_app_desconto (9), um por processo
-# (9) test_mcp_server (17), test_agente_mcp (15), test_app_mcp (6), test_eval (52): sobem o servidor como subprocesso (lentos: ~1 a 3 min cada)
+# (9) test_mcp_server (17), test_agente_mcp (15), test_app_mcp (6), test_eval (52), test_notebook (11): sobem o servidor ou executam o notebook (lentos: ~1 a 3 min cada)
 venv\Scripts\python.exe -m src.mcp_server                     # servidor MCP (stdio); ASSISTENTE_BANCO e ASSISTENTE_LOG opcionais
+venv\Scripts\python.exe notebooks\construir_notebook.py       # monta, executa e salva o notebook narrado com as saídas (~1,5 min; precisa do banco)
 venv\Scripts\python.exe -m streamlit run app/app.py           # app (carrega data/ ou data/raw/ sozinho; upload tem prioridade)
 venv\Scripts\python.exe -m eval.rodar_avaliacao --modo oraculo   # sem LLM: 20 SQLs esperados + 8 valores das ferramentas (eval/ULTIMO_ORACULO.md)
 venv\Scripts\python.exe -m eval.rodar_avaliacao --modo bloqueio  # sem LLM: 6 perguntas maliciosas + 40 cargas de ataque pelo MCP (eval/ULTIMO_BLOQUEIO.md)
@@ -351,3 +352,19 @@ Chave do Groq: variável `GROQ_API_KEY` (avaliação), `st.secrets["GROQ_API_KEY
   o docstring de cada uma começa pela descrição da spec (achou drift: "correção de Holm"), toda ferramenta aparece nas skills e no prompt,
   números das skills batem com o `config.yaml` e frases já substituídas não voltam. Spec: `descrever_dados` atualizada (entrada, saída
   curta, custo em tokens).
+- 2026-10-07 — Fase 7 (notebook narrado, aprovadas A-D): `notebooks/analise_clientes_dunnhumby.ipynb` (60 células, 3,8 MB, com as saídas salvas para ler
+  no GitHub sem rodar). Fonte editável em `notebooks/fonte/conteudo_a.py` e `conteudo_b.py`; `notebooks/construir_notebook.py` monta, executa com
+  `nbclient` e salva. O notebook **não recalcula nada**: chama as mesmas funções do núcleo e as mesmas views; os números dos textos de resultado
+  são preenchidos por código (f-strings), o texto fixo só explica método e escolhas. Seções: 0 resumo, 1 dados e qualidade, 2 métricas (conferência
+  por segundo caminho direto na tabela de fatos: diferença 0,0000), 3 RFM, 4 CLV, 5 risco de pausa (com VIF das 5 variáveis calculado no próprio
+  notebook, maior 7,2, e o p95/p99 do intervalo entre compras para justificar as 8 semanas), 6 teste de desconto, 7 costura (tabela que junta as 4
+  análises por segmento, ações e o que não dá para afirmar), 8 reprodutibilidade (sobe o servidor MCP e confirma que as 4 análises dão exatamente os
+  mesmos números pelo servidor e no notebook). Cada análise abre com "Decisão que esta seção apoia" e fecha com o bloco "e daí?" (texto da própria
+  ferramenta). Nenhum texto afirma "hipótese escrita antes" onde não foi (só no teste de desconto e na regra de K).
+- 2026-10-07 — Fase 7 (gráficos e pacotes): os gráficos são os de `src/ui/graficos.py` (nenhum Altair reescrito), mostrados por `src/notebook_apoio.py` em
+  formato duplo: PNG (o GitHub e o HTML não executam Vega) + especificação Vega-Lite (interativa no Jupyter). Exige `vl-convert-python` (travado no
+  `requirements.txt`, junto com `nbclient`, `ipykernel`, `nbconvert`). O notebook lê o banco local (`data/processed/dunnhumby.duckdb`, fora do Git):
+  quem clonar roda o ETL antes; o arquivo salvo já tem as saídas. `tests/test_notebook.py` (11): estrutura, saídas sem erro, arquivo salvo confere com as
+  ferramentas de hoje (avisa se ficar velho) e execução do zero reproduz exatamente os mesmos textos e números.
+- 2026-10-07 — Fase 7 (bug do cliente MCP): dentro do Jupyter o `ServidorMCP` não subia porque `sys.stderr` do kernel não tem descritor de arquivo; o
+  erro do subprocesso agora vai para `os.devnull` (`errlog`). Isso também tira o log do servidor do console do app.

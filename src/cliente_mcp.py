@@ -69,6 +69,7 @@ class ServidorMCP:
         self._originais: list = []
         self._vida: concurrent.futures.Future | None = None
         self._fechado = False
+        self._errlog = open(os.devnull, "w")
         self._thread = threading.Thread(target=self._loop.run_forever, name="servidor-mcp", daemon=True)
         self._thread.start()
         _abertos.add(self)
@@ -85,7 +86,9 @@ class ServidorMCP:
         self._parar = asyncio.Event()
         params = StdioServerParameters(command=sys.executable, args=["-m", "src.mcp_server"], cwd=str(RAIZ), env=self._env)
         try:
-            async with stdio_client(params) as (leitura, escrita):
+            # O erro do subprocesso vai para um arquivo de verdade: o `sys.stderr` do Jupyter não tem descritor e o do Streamlit
+            # só espalharia o log do servidor no console do app.
+            async with stdio_client(params, errlog=self._errlog) as (leitura, escrita):
                 async with ClientSession(leitura, escrita) as sessao:
                     await sessao.initialize()
                     self._originais = await load_mcp_tools(sessao)
@@ -105,6 +108,7 @@ class ServidorMCP:
             self._sessao = None
             self._fechado = True
             _abertos.discard(self)
+            self._errlog.close()
             self._loop.call_soon(self._loop.stop)
 
     def _executar(self, corrotina, timeout: float):
