@@ -28,3 +28,7 @@ Thumbs.db
 
 # Resultados da avaliação ao vivo (JSON por rodada); o resumo em Markdown é versionado
 eval/resultados/*.json
+
+data/
+*.duckdb
+*.parquet
