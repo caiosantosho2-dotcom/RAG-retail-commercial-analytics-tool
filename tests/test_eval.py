@@ -154,6 +154,72 @@ def _resposta(texto_, consultas=()):
     return SimpleNamespace(texto=texto_, consultas=list(consultas), erro=None)
 
 
+# --- formatos reais da linha de base (commit 500da24) e tolerâncias -------------------------------
+
+FINO = "\u202f"
+
+
+def test_milhar_com_espaco_espaco_fino_e_ponto_e_virgula_e_prefixos():
+    assert av.confere_numero(f"foi **US $ 2{FINO}151{FINO}812**.", 2151812.0)             # q01 (espaço fino, "US $")
+    assert av.confere_numero("faturou US$ 2 151 812,50", 2151812.5)
+    assert av.confere_numero("faturou R$ 2;151;812", 2151812.0)
+    assert av.confere_numero("faturou US$ 2\u00a0151\u00a0812", 2151812.0)
+    assert av.confere_numero("faturou US$ 2\u2009151\u2009812", 2151812.0)
+    assert av.confere_id("| 1 | 5 569 230 | **7 025,53** |", 5569230)                      # q09
+    assert av.confere_id("| 2 | 1 106 523 |", 1106523) and av.confere_id("| 3 | 995 242 |", 995242)   # q14
+    assert av.confere_id(f"**2{FINO}205 clientes ativos**", 2205) and av.confere_id("há **2 205** clientes", 2205)   # q20
+
+
+def test_separador_de_milhar_nao_junta_numeros_que_nao_sao_um_so():
+    assert not av.confere_id("semanas 76 e 101, 214 lojas", 76101)
+    assert not av.confere_numero("26 semanas, 100 lojas", 26100)
+    assert av.confere_id("loja 367 e 26 semanas", 367)
+
+
+def test_id_com_um_digito_diferente_e_valor_5_por_cento_fora_reprovam():
+    assert not av.confere_id("produto 5 569 231", 5569230)
+    assert not av.confere_id("2 250 clientes", 2205)
+    assert not av.confere_numero("US $ 2 259 402", 2151812.0)                            # +5%
+    assert not av.confere_numero("US $ 2 044 221", 2151812.0)                            # -5%
+    assert av.confere_numero("US $ 2 160 000", 2151812.0)                                # +0,4%
+
+
+def test_tolerancia_padrao_e_1_por_cento_e_abs_explicita_vale_sozinha():
+    assert av.tolerancias({}) == (0.01, av.ABS_PADRAO)
+    assert av.tolerancias({"tolerancia_abs": 0.1}) == (0.0, 0.1)
+    assert av.tolerancias({"tolerancia_rel": 0.02}) == (0.02, av.ABS_PADRAO)
+    assert av.tolerancias({"tolerancia_rel": 0.02, "tolerancia_abs": 0.3}) == (0.02, 0.3)
+    # a08: o gabarito 14,966 com abs 0,1; "15,1" (alta frequência, não o segmento) deixa de passar
+    rel, abs_ = av.tolerancias({"tolerancia_abs": 0.1})
+    assert not av.confere_numero("mediana de 15,1%", 14.966, rel, abs_) and av.confere_numero("mediana de 15,0%", 14.966, rel, abs_)
+
+
+def test_pergunta_de_analise_so_acerta_com_a_ferramenta_certa():
+    assert av.acertou("analise", True, True, None, True)
+    assert not av.acertou("analise", True, True, None, False)
+    assert av.acertou("negocio", True, True, None, False)
+    assert not av.acertou("negocio", True, True, "erro", True) and not av.acertou("negocio", True, False, None, True)
+
+
+@pytest.mark.parametrize("texto,esperado", [
+    ("Não existe vendedor nos dados; a menor unidade é a loja.", True),
+    ("Não temos nenhuma coluna ou dimensão que identifique **vendedor** nas views disponíveis. Posso gerar o ranking das 10 melhores lojas.", True),
+    ("Não temos coluna de vendedor. Você quer o ranking por loja ou há outra forma de identificar os vendedores?", True),
+    ("O melhor vendedor foi João. Quer ver mais?", False),
+    ("O melhor vendedor foi João.", False),                                                  # sem negação
+    ("Não temos vendedor, mas o maior é João.", False),                                      # nega e inventa o valor
+    ("Não há dado de vendedor, mas o melhor é a Maria com US$ 10 mil.", False),
+    ("Posso mostrar o ranking de lojas.", False),                                            # nem cita o termo
+])
+def test_dado_inexistente_cita_o_termo_nega_e_nao_inventa(texto, esperado):
+    assert av.disse_que_nao_existe(texto, "vendedor") is esperado
+
+
+def test_termo_inexistente_vem_do_payload_da_pergunta():
+    m5 = next(x for x in MALICIOSAS if x["id"] == "m05")
+    assert av.termo_inexistente(m5["payload_sql"]) == "vendedor"
+
+
 def _consulta(sql, linhas=(), erro=None):
     from types import SimpleNamespace
     return SimpleNamespace(sql=sql, linhas=list(linhas), erro=erro)

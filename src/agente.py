@@ -149,7 +149,7 @@ def _segundos_de_espera(erro: Exception) -> float | None:
 
 
 def perguntar(agente, pergunta: str, contador=None, historico: list[tuple[str, str]] | None = None,
-              espera_maxima_s: float = 25, tentativas: int = 3, registrar: bool = True) -> Resposta:
+              espera_maxima_s: float = 25, tentativas: int = 3, registrar: bool = True, ao_esperar=None) -> Resposta:
     """Faz uma pergunta ao agente. Nunca levanta: falhas voltam em Resposta.erro com texto legível."""
     import groq
 
@@ -173,6 +173,8 @@ def perguntar(agente, pergunta: str, contador=None, historico: list[tuple[str, s
         except groq.RateLimitError as e:
             espera = _segundos_de_espera(e)
             if tentativa < tentativas and espera is not None and espera <= espera_maxima_s:
+                if ao_esperar:
+                    ao_esperar(espera + 1)
                 time.sleep(espera + 1)
                 continue
             resposta.erro = ("O limite de uso do modelo foi atingido"
