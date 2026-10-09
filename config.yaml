@@ -42,8 +42,8 @@ logs:
   uso_chat: logs/uso_chat.jsonl   # pergunta, hora, SQL gerado e erro
 
 agente:
-  modelo: "llama-3.3-70b-versatile"
-  modelos_disponiveis: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
+  modelo: "openai/gpt-oss-120b"
+  modelos_disponiveis: ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]
   temperatura: 0
   max_iteracoes: 6
   glossario_top_k: 4
