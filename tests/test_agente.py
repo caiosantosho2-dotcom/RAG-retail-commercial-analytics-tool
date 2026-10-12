@@ -231,3 +231,9 @@ def test_prompt_traz_as_regras_de_ids_faturamento_liquido_e_fieis():
     assert "já é líquido" in p and "nunca desconte de novo" in p                   # faturamento líquido
     assert "nome de um segmento RFM" in p and "nunca se chama \"Fiéis\"" in p       # Fiéis é do RFM
     assert "Não use SQL como calculadora" in p
+
+
+def test_prompt_separa_total_geral_do_total_like_for_like():
+    p = agente.INSTRUCOES_SISTEMA
+    assert "cobrem só as lojas like-for-like" in p
+    assert "nunca use esse total no lugar do total geral" in p
