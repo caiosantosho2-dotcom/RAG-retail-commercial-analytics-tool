@@ -78,9 +78,9 @@ _TERMOS_DE_VOCABULARIO = [
     ("Laticínios (também: lácteos, dairy, leite e queijo)",
      "Não é um departamento. Use COMMODITY_DESC IN ('FLUID MILK PRODUCTS', 'MILK BY-PRODUCTS', 'CHEESE', 'CHEESES', "
      "'YOGURT', 'BUTTER', 'MISC. DAIRY'). Ovos e sorvete ficam de fora."),
-    ("Cliente de alta frequência (também: clientes fiéis, quem compra mais vezes)",
+    ("Cliente de alta frequência (também: quem compra mais vezes, clientes frequentes)",
      "Household com frequencia acima do percentil 75 em vw_metricas_cliente no período. Use "
-     "quantile_cont(frequencia, 0.75) para achar o corte."),
+     "quantile_cont(frequencia, 0.75) para achar o corte. Não é o segmento Fiéis da segmentação RFM."),
     ("Campanha (também: ação promocional, mailer de campanha, resgate de cupom)",
      "campaign_desc traz CAMPAIGN, DESCRIPTION (TypeA, TypeB, TypeC), START_DAY e END_DAY; campaign_table, os households "
      "que receberam; coupon_redempt, os resgates (household_key, DAY, CAMPAIGN). Para o gasto de quem resgatou, junte "
@@ -102,8 +102,8 @@ _TERMOS_DE_VOCABULARIO = [
     ("Devolução (também: estorno, troca, cancelamento)",
      "Não há devoluções nesta base: não existe valor ou quantidade negativos. Combustível e pseudo-itens de cupom ficam "
      "fora das vendas."),
-    ("Segmentação, CLV, churn e teste de desconto (também: RFM, valor do cliente ao longo da vida, risco de saída, perfil de cliente)",
-     "Não são consultas SQL: são análises estatísticas das abas de análise. Não tente reproduzi-las com SQL."),
+    ("Segmentação, CLV, churn e teste de desconto (também: RFM, segmentos, Fiéis, Regulares, Esporádicos, Em pausa, grupo de clientes, valor do cliente ao longo da vida, risco de saída, perfil de cliente)",
+     "Não são consultas SQL: são análises estatísticas das abas de análise. Não tente reproduzi-las com SQL. Fiéis, Regulares, Esporádicos e Em pausa são os segmentos RFM, da ferramenta de segmentação de clientes; 'Fiéis' não é o mesmo que cliente de alta frequência."),
 ]
 
 

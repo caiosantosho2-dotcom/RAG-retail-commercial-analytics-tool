@@ -223,3 +223,11 @@ def test_sessoes_com_bancos_diferentes_nao_se_misturam(tmp_path):
 def executar_consulta_padrao():
     from src.nucleo.consulta import executar_consulta
     return executar_consulta("SELECT 1 AS x")
+
+
+def test_prompt_traz_as_regras_de_ids_faturamento_liquido_e_fieis():
+    p = agente.INSTRUCOES_SISTEMA
+    assert "sem separador de milhar" in p and "5569230" in p                       # IDs sem separador
+    assert "já é líquido" in p and "nunca desconte de novo" in p                   # faturamento líquido
+    assert "nome de um segmento RFM" in p and "nunca se chama \"Fiéis\"" in p       # Fiéis é do RFM
+    assert "Não use SQL como calculadora" in p

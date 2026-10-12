@@ -125,3 +125,12 @@ def test_commodities_de_laticinios_existem_e_tem_venda():
     achadas = con.execute(f"SELECT COUNT(DISTINCT COMMODITY_DESC) FROM dim_produto WHERE COMMODITY_DESC IN ({lista})").fetchone()[0]
     con.close()
     assert achadas == lista.count("'") // 2
+
+
+def test_fieis_e_do_segmento_rfm_e_nao_de_cliente_de_alta_frequencia():
+    alta = next(i for i in GLOSSARIO if i["termo"].startswith("Cliente de alta frequência"))
+    assert "fiéis" not in alta["termo"].lower() and "Não é o segmento Fiéis" in alta["definicao"]
+    for pergunta in ("Que parcela do faturamento vem dos clientes Fiéis?", "Qual a mediana do desconto dos clientes Fiéis?"):
+        primeiro = pontuar(pergunta)[0][1]["termo"]
+        assert primeiro.startswith("Segmentação, CLV"), (pergunta, primeiro)
+    assert buscar_termos_relevantes("Os 3 produtos que mais faturam entre os clientes de alta frequência").count("Cliente de alta frequência") == 1
