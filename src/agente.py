@@ -16,6 +16,7 @@ from pathlib import Path
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import StructuredTool
+from langgraph.errors import GraphRecursionError
 
 from src.config import CFG, RAIZ
 from src.cliente_mcp import texto_do_conteudo
@@ -34,7 +35,7 @@ Como trabalhar:
 3. Comparações com o ano anterior: use vw_yoy_resumo, vw_yoy_loja ou vw_yoy_categoria (já alinham as semanas e as lojas). Para explicar por que algo mudou, consulte também vw_contexto_periodo. O número pedido vem da consulta que responde à pergunta: as vw_yoy_* servem para variação e contexto, e os totais delas cobrem só as lojas like-for-like; nunca use esse total no lugar do total geral (faturamento total = vw_vendas_item ou vw_metricas_cesta, todas as lojas).
 4. "Loja", "unidade" e "filial" são STORE_ID. Texto de categoria e de produto: ILIKE '%...%'.
 5. "Último mês", "ano passado" e semelhantes são relativos ao fim dos dados (vw_janela), nunca à data de hoje.
-6. Listagens de registros: LIMIT 20 (máximo 200). Prefira uma consulta agregada a várias consultas.
+6. Listagens de registros: LIMIT 20 (máximo 200). Prefira uma consulta agregada a várias consultas. Não explore com sondagens (MIN/MAX, SELECT 1) nem repita descrever_dados para o que o glossário ou o catálogo já trazem.
 7. Se a consulta falhar, leia o erro, corrija e tente de novo (no máximo duas vezes).
 8. Pergunte antes de consultar só quando nenhuma ferramenta nem premissa do projeto cobre o caso (qual loja? qual período?). "Margem esperada", "valor esperado de um cliente" e "quanto vale um cliente" não são ambíguas: chame calcular_clv e declare as premissas (margem de 25%, horizonte de 52 semanas); nunca peça a fórmula da margem.
 9. Segmentação de clientes, CLV, churn e teste de desconto entre segmentos NÃO são consultas SQL: use as ferramentas segmentar_clientes, calcular_clv, prever_churn e testar_desconto_entre_segmentos (sem argumentos, a menos que a pergunta peça um segmento). Elas trazem um bloco e_dai: responda com a conclusão, a ação recomendada e a limitação mais importante, em poucas frases, citando as premissas (margem do CLV, "churn" = pausa de 8 semanas, teste de desconto = diferença entre grupos, não causa). Não repita o retorno inteiro.
@@ -152,6 +153,31 @@ def _segundos_de_espera(erro: Exception) -> float | None:
     return int(achado.group(1) or 0) * 60 + float(achado.group(2) or 0)
 
 
+def _valor_curto(v) -> str:
+    return f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if isinstance(v, float) else str(v)
+
+
+def resposta_parcial(consultas: list[Consulta], ferramentas: list[str], rodadas: int) -> str:
+    """Texto para quando o agente estoura o limite de passos: o que já veio das ferramentas e o que faltou.
+    Montado só com o que as ferramentas devolveram; não chama o modelo de novo."""
+    linhas = [f"Não consegui concluir a resposta dentro do limite de {rodadas} rodadas de ferramenta."]
+    ok = [c for c in consultas if not c.erro and c.linhas]
+    if ok:
+        linhas.append("O que já obtive:")
+        for c in ok[-3:]:
+            amostra = "; ".join(", ".join(f"{col} = {_valor_curto(v)}" for col, v in zip(c.colunas, linha))
+                                for linha in c.linhas[:3])
+            linhas.append(f"- {amostra}" + (f" (+{len(c.linhas) - 3} linhas)" if len(c.linhas) > 3 else ""))
+    elif ferramentas:
+        linhas.append("Chamei " + ", ".join(dict.fromkeys(ferramentas)) + ", mas nenhuma consulta trouxe resultado utilizável.")
+    else:
+        linhas.append("Nenhuma ferramenta chegou a devolver resultado.")
+    faltou = "a conclusão final ligando esses números à pergunta" if ok else "um resultado que responda à pergunta"
+    linhas.append(f"O que faltou: {faltou}. Tente de novo ou divida a pergunta em partes menores "
+                  "(por exemplo, primeiro a lista de households, depois o gasto).")
+    return "\n".join(linhas)
+
+
 def perguntar(agente, pergunta: str, contador=None, historico: list[tuple[str, str]] | None = None,
               espera_maxima_s: float = 25, tentativas: int = 3, registrar: bool = True, ao_esperar=None) -> Resposta:
     """Faz uma pergunta ao agente. Nunca levanta: falhas voltam em Resposta.erro com texto legível."""
@@ -169,8 +195,10 @@ def perguntar(agente, pergunta: str, contador=None, historico: list[tuple[str, s
     resposta = Resposta(texto="", glossario=glossario)
     for tentativa in range(1, tentativas + 1):
         try:
-            saida = agente.invoke({"messages": mensagens}, config=config)
-            texto, consultas, ferramentas = _extrair(saida["messages"], len(mensagens))
+            estado = {"messages": mensagens}
+            for estado in agente.stream({"messages": mensagens}, config=config, stream_mode="values"):
+                pass   # `estado` guarda o último estado: com o estouro do limite, é o que já foi feito
+            texto, consultas, ferramentas = _extrair(estado["messages"], len(mensagens))
             resposta.texto, resposta.consultas, resposta.ferramentas = texto, consultas, ferramentas
             resposta.erro = None
             break
@@ -192,6 +220,11 @@ def perguntar(agente, pergunta: str, contador=None, historico: list[tuple[str, s
             if tentativa < tentativas and "tool" in str(e).lower():
                 continue
             resposta.erro = "O modelo não conseguiu montar a consulta. Reformule a pergunta ou tente de novo."
+            break
+        except GraphRecursionError:
+            _, resposta.consultas, resposta.ferramentas = _extrair(estado["messages"], len(mensagens))
+            resposta.texto = resposta_parcial(resposta.consultas, resposta.ferramentas, CFG["agente"]["max_iteracoes"])
+            resposta.erro = "Limite de passos do agente atingido antes da resposta final."
             break
         except Exception as e:  # rede, limite de recursão, formato inesperado
             resposta.erro = f"Não consegui responder agora ({type(e).__name__}). Tente de novo."

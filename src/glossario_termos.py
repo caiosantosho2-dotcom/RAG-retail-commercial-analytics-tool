@@ -84,7 +84,11 @@ _TERMOS_DE_VOCABULARIO = [
     ("Campanha (também: ação promocional, mailer de campanha, resgate de cupom)",
      "campaign_desc traz CAMPAIGN, DESCRIPTION (TypeA, TypeB, TypeC), START_DAY e END_DAY; campaign_table, os households "
      "que receberam; coupon_redempt, os resgates (household_key, DAY, CAMPAIGN). Para o gasto de quem resgatou, junte "
-     "os households de coupon_redempt com vw_vendas_item. Resumo por período: vw_contexto_periodo."),
+     "os households de coupon_redempt com vw_vendas_item. Resumo por período: vw_contexto_periodo. Uma só consulta, sem "
+     "sondagens: WITH r AS (SELECT DISTINCT household_key FROM coupon_redempt WHERE CAMPAIGN = n), c AS (SELECT "
+     "START_DAY, END_DAY FROM campaign_desc WHERE CAMPAIGN = n) SELECT (SELECT COUNT(*) FROM r) AS households, "
+     "SUM(faturamento) AS gasto FROM vw_vendas_item, c WHERE household_key IN (SELECT household_key FROM r) AND "
+     "data_id BETWEEN START_DAY AND END_DAY."),
     ("Display e mailer (também: exposição, encarte, material de ponto de venda)",
      "causal_semana_loja traz, por semana e loja, quantas linhas produto-loja estavam em display (linhas_display) e em "
      "mailer (linhas_mailer). Só cobre as semanas 9 a 101."),

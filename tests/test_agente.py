@@ -155,7 +155,24 @@ def test_falha_inesperada_nunca_levanta():
 def test_loop_de_ferramentas_e_cortado_pelo_limite_de_recursao():
     ag, _ = montar(*[chamada(SQL_TICKET, f"c{i}") for i in range(40)])
     r = agente.perguntar(ag, "ticket", registrar=False)
-    assert r.erro and r.texto == r.erro
+    assert r.erro and "Limite de passos" in r.erro
+    assert r.texto != r.erro and "Não consegui concluir a resposta" in r.texto   # resposta parcial, não só o erro
+    assert "O que já obtive:" in r.texto and "ticket_medio = 9,50" in r.texto and "O que faltou:" in r.texto
+    assert r.ferramentas and len(r.consultas) >= 3                              # o que foi feito não se perde
+
+
+def test_estouro_do_limite_sem_resultado_diz_o_que_faltou():
+    sql_ruim = "SELECT coluna_que_nao_existe FROM vw_metricas_loja_semana"
+    ag, _ = montar(*[chamada(sql_ruim, f"c{i}") for i in range(40)])
+    r = agente.perguntar(ag, "ticket", registrar=False)
+    assert r.erro and "O que já obtive" not in r.texto
+    assert "nenhuma consulta trouxe resultado utilizável" in r.texto and "O que faltou: um resultado" in r.texto
+
+
+def test_resposta_parcial_mostra_ate_3_linhas_e_as_3_ultimas_consultas():
+    cs = [agente.Consulta(sql=f"s{i}", colunas=["a"], linhas=[[float(i)]] * 5) for i in range(5)]
+    txt = agente.resposta_parcial(cs, ["executar_consulta"], 6)
+    assert txt.count("\n- ") == 3 and "(+2 linhas)" in txt and "a = 4,00" in txt and "a = 0,00" not in txt
 
 
 def test_uso_e_registrado_em_arquivo(ambiente):

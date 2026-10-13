@@ -8,6 +8,7 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from src import agente, carga
+from src.config import CFG
 from src.etl import ErroCarga
 from src.nucleo import banco
 from tests.fakes import ModeloRoteirizado, chamada, texto
@@ -60,7 +61,7 @@ def test_barra_lateral_tem_chave_modelo_e_contador_de_tokens(app):
     from streamlit.proto.TextInput_pb2 import TextInput as CampoDeTexto
     campo = at.sidebar.text_input[0]
     assert campo.label == "Chave do Groq" and campo.proto.type == CampoDeTexto.PASSWORD   # mascarada
-    assert at.sidebar.selectbox[0].value == "llama-3.3-70b-versatile"
+    assert at.sidebar.selectbox[0].value == CFG["agente"]["modelo"]
     assert {m.label: m.value for m in at.sidebar.metric} == {"Última resposta": "0", "Sessão": "0"}
 
 

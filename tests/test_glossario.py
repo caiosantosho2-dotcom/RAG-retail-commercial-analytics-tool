@@ -144,3 +144,9 @@ def test_fieis_e_do_segmento_rfm_e_nao_de_cliente_de_alta_frequencia():
 def test_perguntas_de_margem_esperada_trazem_o_termo_do_clv_com_as_premissas(pergunta):
     achados = buscar_termos_relevantes(pergunta)
     assert "margem de 25% e horizonte de 52 semanas" in achados
+
+
+def test_termo_campanha_traz_a_receita_em_uma_consulta():
+    achados = buscar_termos_relevantes(
+        "Quantos households resgataram cupom da campanha 18 e quanto gastaram durante o período da campanha?")
+    assert "campaign_desc" in achados and "BETWEEN START_DAY AND END_DAY" in achados
