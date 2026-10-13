@@ -329,3 +329,20 @@ def test_funcao_de_tabela_que_nao_e_ferramenta_mantem_a_sugestao_antiga():
     r = executar_consulta("SELECT * FROM range(5)")
     assert "não é uma ferramenta" not in r["erro"] and "ferramenta" not in r["erro"].split("(")[0]
     assert "vw_*" in r["sugestao"]
+
+
+def test_consulta_sem_filtro_de_periodo_em_fonte_de_historico_traz_aviso_periodo():
+    r = executar_consulta("SELECT SUM(faturamento) AS f FROM vw_vendas_item")
+    assert "aviso_periodo" in r and "todo o histórico" in r["aviso_periodo"]
+    assert "referência do projeto" in r["janela"]["regra"] and "não é o filtro da sua consulta" in r["janela"]["regra"]
+
+
+@pytest.mark.parametrize("sql", [
+    "SELECT SUM(faturamento) AS f FROM vw_vendas_item WHERE periodo = 'atual'",
+    "SELECT periodo, SUM(faturamento) AS f FROM vw_vendas_item GROUP BY periodo",
+    "SELECT faturamento_atual FROM vw_yoy_resumo",
+    "SELECT COUNT(*) AS n FROM dim_produto",
+])
+def test_consulta_com_periodo_ou_fora_das_fontes_de_historico_nao_traz_aviso_periodo(sql):
+    r = executar_consulta(sql)
+    assert "erro" not in r and "aviso_periodo" not in r

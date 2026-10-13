@@ -45,6 +45,19 @@ class ConsultaRecusada(Exception):
         self.erro, self.sugestao = erro, sugestao
 
 
+# Fontes que guardam mais de uma janela (atual, base e o resto do histórico). As vw_yoy_*, vw_janela e as dimensões
+# já são, por definição, da janela ou não têm período: não geram aviso.
+_FONTES_DE_HISTORICO = re.compile(
+    r"\b(vw_vendas_item|vw_metricas_\w+|vw_cliente_semana|fato_transacoes|coupon_redempt|campaign_table|campaign_desc"
+    r"|causal_semana_loja)\b", re.I)
+FILTRO_DE_PERIODO = re.compile(r"\b(periodo|semana\w*|week_no|data_id|data|day|start_day|end_day)\b", re.I)
+
+
+def _cobre_todo_o_historico(sql: str) -> bool:
+    """Heurística sobre o texto do SQL: usa fonte de histórico e não menciona coluna de período."""
+    return bool(_FONTES_DE_HISTORICO.search(sql)) and not FILTRO_DE_PERIODO.search(sql)
+
+
 def _tabela_permitida(nome: str) -> bool:
     return any(fnmatch.fnmatchcase(nome.lower(), p) for p in TABELAS_PERMITIDAS)
 
@@ -200,6 +213,10 @@ def executar_consulta(sql: str, limite: int = LIMITE_PADRAO) -> dict:
 
     retorno = {"colunas": colunas, "linhas": linhas, "total_linhas": int(total), "truncado": truncado,
                "limite_aplicado": limite, "sql_executado": sql_original, **rastro}
+    if _cobre_todo_o_historico(sql_original):
+        retorno["aviso_periodo"] = ("A consulta não filtra período (periodo, semana ou data): o resultado cobre todo o "
+                                    "histórico das tabelas consultadas, não só a janela de análise. Ao descrever o "
+                                    "período na resposta, diga \"todo o histórico\".")
     while len(json.dumps(retorno, ensure_ascii=False).encode()) > MAX_BYTES and retorno["linhas"]:
         retorno["linhas"] = retorno["linhas"][: max(0, len(retorno["linhas"]) // 2)]
         retorno["truncado"] = True

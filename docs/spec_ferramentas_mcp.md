@@ -53,7 +53,7 @@ As descrições abaixo viram as docstrings. A IA escolhe a ferramenta pela descr
 ### 3.2 `executar_consulta(sql: str, limite: int = 20)`
 - **Descrição:** "Executa uma consulta SQL de leitura nas views e dimensões do projeto e devolve o resultado. Use para perguntas pontuais (vendas de uma loja, ticket médio, comparação com o ano anterior). Não use para segmentação, CLV, churn ou testes estatísticos: para isso existem ferramentas próprias."
 - **Entrada:** `sql` (uma instrução SELECT ou WITH); `limite` (1 a 200).
-- **Saída:** `colunas`, `linhas` (até o limite), `total_linhas`, `truncado` (bool), `limite_aplicado`, `sql_executado`, `versao_base`, `janela`; `aviso` quando o retorno é reduzido pelo limite de tamanho.
+- **Saída:** `colunas`, `linhas` (até o limite), `total_linhas`, `truncado` (bool), `limite_aplicado`, `sql_executado`, `versao_base`, `janela`; `aviso` quando o retorno é reduzido pelo limite de tamanho; `aviso_periodo` quando a consulta usa uma fonte de histórico (`vw_vendas_item`, `vw_metricas_*`, `coupon_redempt`, `campaign_*` etc.) sem filtrar período (heurística sobre o texto do SQL): o resultado cobre todo o histórico, e a resposta deve dizer isso. `janela` é a referência do projeto, não o filtro da consulta.
 - **Tabelas visíveis:** `vw_*`, `dim_*`, `fato_transacoes`, `campaign_*`, `coupon*`, `causal_semana_loja` e `metricas_definicao`. Ficam de fora `raw_*`, `fato_ajustes`, `log_cargas`, `meta` e `_mat_*` (allowlist no código).
 - **Nunca:** executar escrita, mais de uma instrução, ou retornar mais que o limite.
 - **Pronto quando:** passa nos testes de guard-rail e acerta as perguntas de consulta do conjunto de avaliação.

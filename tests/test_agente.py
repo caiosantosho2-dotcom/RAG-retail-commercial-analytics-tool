@@ -259,7 +259,7 @@ def executar_consulta_padrao():
 
 def test_prompt_traz_as_regras_de_ids_faturamento_liquido_e_fieis():
     p = agente.INSTRUCOES_SISTEMA
-    assert "sem separador de milhar" in p and "5569230" in p                       # IDs sem separador
+    assert "sem separador de milhar" in p and "1234567" in p                       # IDs sem separador
     assert "já é líquido" in p and "nunca desconte de novo" in p                   # faturamento líquido
     assert "nome de um segmento RFM" in p and "nunca se chama \"Fiéis\"" in p       # Fiéis é do RFM
     assert "Não use SQL como calculadora" in p
@@ -279,4 +279,20 @@ def test_prompt_manda_margem_esperada_para_calcular_clv_sem_perguntar():
 
 def test_prompt_define_o_padrao_de_escrita_dos_valores_monetarios():
     p = agente.INSTRUCOES_SISTEMA
-    assert "US$ 1.103.220" in p and "nenhum espaço dentro do número" in p
+    assert "US$ 12.345,67" in p and "nenhum espaço dentro do número" in p
+
+
+def test_prompt_exige_periodo_do_filtro_e_definicao_declarada():
+    p = agente.INSTRUCOES_SISTEMA
+    assert 'sem filtro de periodo, semana ou data, diga "todo o histórico"' in p
+    assert "campo janela do retorno é só a referência do projeto" in p
+    assert "mais de uma definição possível" in p and "diga qual usou" in p
+
+
+def test_prompt_e_glossario_nao_trazem_numeros_de_resposta():
+    """O glossário e o prompt ensinam o caminho, nunca o resultado (valores dos gabaritos e das respostas validadas)."""
+    from src.glossario_termos import GLOSSARIO
+    texto = agente.INSTRUCOES_SISTEMA + " ".join(g["termo"] + " " + g["definicao"] for g in GLOSSARIO)
+    for numero in ["214", "138216", "138.216", "1103220", "1.103.220", "5569230", "5.569.230", "2151812", "2.151.812",
+                   "819,75", "7376322", "2480", "70,9", "14,966"]:
+        assert numero not in texto, numero

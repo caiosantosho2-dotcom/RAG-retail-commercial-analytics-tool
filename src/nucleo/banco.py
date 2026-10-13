@@ -97,8 +97,9 @@ def janela(cur) -> dict | None:
                   "datas": [str(j.data_ini_atual)[:10], str(j.data_fim_atual)[:10]]},
         "base": {"semanas": [int(j.semana_ini_base), int(j.semana_fim_base)],
                  "datas": [str(j.data_ini_base)[:10], str(j.data_fim_base)[:10]]},
-        "regra": f"últimas {int(j.semanas)} semanas completas contra as mesmas semanas um ano antes "
-                 f"(WEEK_NO - {int(j.offset_semanas)}), só lojas presentes nos dois períodos",
+        "regra": f"janela de referência do projeto, usada só quando a consulta filtra periodo = 'atual' ou 'base' "
+                 f"(não é o filtro da sua consulta): últimas {int(j.semanas)} semanas completas contra as mesmas "
+                 f"semanas um ano antes (WEEK_NO - {int(j.offset_semanas)}), só lojas presentes nos dois períodos",
     }
 
 
