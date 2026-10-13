@@ -10,7 +10,7 @@ antes de decidir.
 Ferramenta para a área comercial de varejo. O usuário exporta uma planilha do
 BI, arrasta para o app e:
 - pergunta em linguagem de negócio num **chat** que responde consultando os
-  dados via SQL (produto principal, primeira aba);
+  dados via SQL (produto principal, segunda aba, depois do Resumo);
 - consulta **abas de análise estatística** de clientes, com a conclusão de
   negócio em destaque (voltadas à gerência e diretoria).
 
@@ -43,8 +43,8 @@ escolha de produto, não limitação.
 
 ## Regras inegociáveis
 
-1. O chat é a primeira aba: glossário RAG injetado no prompt, SQL visível num
-   expander, contador de tokens na sidebar.
+1. O Resumo é a primeira aba; o chat é a segunda e o centro do produto: glossário RAG
+   injetado no prompt, SQL visível num expander, contador de tokens na sidebar.
 2. Carga por upload (CSV/Excel) e por pasta `data/`; o upload tem prioridade.
 3. Cada métrica é definida **uma vez**, como view no DuckDB. Chat, abas e
    notebook usam essas views. Nunca dois números para a mesma pergunta.

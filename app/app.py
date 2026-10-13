@@ -1,4 +1,4 @@
-"""Assistente comercial: o chat é a primeira aba; a carga de dados é por arquivo (ou pela pasta data/).
+"""Assistente comercial: o Resumo é a primeira aba e o chat a segunda; a carga de dados é por arquivo (ou pela pasta data/).
 
 Rodar: streamlit run app/app.py
 """
@@ -16,7 +16,7 @@ from src.cliente_mcp import ErroServidorMCP, ServidorMCP  # noqa: E402
 from src.config import CFG  # noqa: E402
 from src.etl import ErroCarga  # noqa: E402
 from src.token_counter import LIMITES_REFERENCIA_TPM, ContadorTokens  # noqa: E402
-from src.ui import aba_churn, aba_clv, aba_desconto, aba_segmentos  # noqa: E402
+from src.ui import aba_churn, aba_clv, aba_desconto, aba_resumo, aba_segmentos  # noqa: E402
 
 EXEMPLOS = [
     "Qual loja teve o maior ticket médio nas últimas 4 semanas?",
@@ -255,8 +255,14 @@ def main():
         st.session_state.autocarga_tentada = True
         _carregar_dados(silencioso=True)
     chave, modelo = _barra_lateral()
-    aba_chat, aba_segmentos_, aba_clv_, aba_churn_, aba_desconto_, aba_dados = st.tabs(
-        ["Chat", "Segmentos (RFM)", "Valor do cliente (CLV)", "Risco de pausa (churn)", "Desconto por segmento", "Dados e qualidade"])
+    aba_resumo_, aba_chat, aba_segmentos_, aba_clv_, aba_churn_, aba_desconto_, aba_dados = st.tabs(
+        ["Resumo", "Chat", "Segmentos (RFM)", "Valor do cliente (CLV)", "Risco de pausa (churn)", "Desconto por segmento",
+         "Dados e qualidade"])
+    with aba_resumo_:
+        if st.session_state.carga is None:
+            st.info("Carregue os dados na aba Chat para ver o resumo.")
+        else:
+            aba_resumo.renderizar(st.session_state.carga.caminho_banco)
     with aba_chat:
         _aba_chat(chave, modelo)
     with aba_segmentos_:

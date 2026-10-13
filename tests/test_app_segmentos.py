@@ -44,13 +44,13 @@ def filhos(aba):
 @precisa_do_banco
 def test_a_aba_abre_sem_erro_com_tres_abas_e_o_chat_primeiro(tela_real):
     assert not tela_real.exception and not tela_real.error
-    assert [t.label for t in tela_real.tabs] == ["Chat", "Segmentos (RFM)", "Valor do cliente (CLV)", "Risco de pausa (churn)", "Desconto por segmento", "Dados e qualidade"]
+    assert [t.label for t in tela_real.tabs] == ["Resumo", "Chat", "Segmentos (RFM)", "Valor do cliente (CLV)", "Risco de pausa (churn)", "Desconto por segmento", "Dados e qualidade"]
     assert len(tela_real.chat_input) == 1
 
 
 @precisa_do_banco
 def test_o_e_dai_e_o_primeiro_elemento_da_aba_antes_de_qualquer_grafico(tela_real):
-    elementos = filhos(tela_real.tabs[1])
+    elementos = filhos(tela_real.tabs[2])
     assert type(elementos[0]).__name__ == "Subheader" and elementos[0].value == "E daí?"
     tipos = [getattr(e, "type", "") for e in elementos]
     assert "vega_lite_chart" in tipos
@@ -59,28 +59,28 @@ def test_o_e_dai_e_o_primeiro_elemento_da_aba_antes_de_qualquer_grafico(tela_rea
 
 @precisa_do_banco
 def test_o_bloco_e_dai_tem_os_quatro_itens(tela_real):
-    texto = " ".join(m.value for m in tela_real.tabs[1].markdown)
+    texto = " ".join(m.value for m in tela_real.tabs[2].markdown)
     for rotulo in ("Ação recomendada.", "Impacto estimado.", "Limitações."):
         assert rotulo in texto
-    assert any(m.value.startswith("### ") and "faturamento da janela" in m.value for m in tela_real.tabs[1].markdown)   # conclusão em destaque
+    assert any(m.value.startswith("### ") and "faturamento da janela" in m.value for m in tela_real.tabs[2].markdown)   # conclusão em destaque
 
 
 @precisa_do_banco
 def test_a_aba_mostra_os_mesmos_numeros_da_ferramenta_e_do_chat(tela_real):
     banco.definir_banco(BANCO)
     r = segmentar_clientes()
-    textos = " ".join(m.value for m in tela_real.tabs[1].markdown)
+    textos = " ".join(m.value for m in tela_real.tabs[2].markdown)
     assert r["e_dai"]["conclusao"] in textos and r["e_dai"]["impacto_estimado"] in textos
-    metricas = {m.label: m.value for m in tela_real.tabs[1].metric}
+    metricas = {m.label: m.value for m in tela_real.tabs[2].metric}
     assert metricas["Segmentos (K)"] == str(r["k_usado"]) == "4"
     assert metricas["Households fora da análise"] == "79"
-    perfil = next(d for d in tela_real.tabs[1].dataframe if "Segmento" in d.value.columns)
+    perfil = next(d for d in tela_real.tabs[2].dataframe if "Segmento" in d.value.columns)
     assert perfil.value["Households"].sum() == 2421 and list(perfil.value["Segmento"]) == [s["nome"] for s in r["segmentos"]]
 
 
 @precisa_do_banco
 def test_os_tres_graficos_tem_titulo_com_a_conclusao(tela_real):
-    graficos_vega = tela_real.tabs[1].get("vega_lite_chart")
+    graficos_vega = tela_real.tabs[2].get("vega_lite_chart")
     assert len(graficos_vega) == 3
     titulos = [json.loads(g.proto.spec)["title"] for g in graficos_vega]
     titulos = [t["text"] if isinstance(t, dict) else t for t in titulos]
@@ -91,14 +91,14 @@ def test_os_tres_graficos_tem_titulo_com_a_conclusao(tela_real):
 
 @precisa_do_banco
 def test_cada_grafico_tem_a_versao_em_tabela_e_ha_um_expander_de_escolhas(tela_real):
-    rotulos = [e.label for e in tela_real.tabs[1].expander]
+    rotulos = [e.label for e in tela_real.tabs[2].expander]
     assert rotulos.count("Ver os dados do gráfico") == 2 and "Ver a avaliação de cada K" in rotulos
     assert "Escolhas estatísticas e exclusões" in rotulos
 
 
 @precisa_do_banco
 def test_a_legenda_explica_a_regra_do_k_e_a_limitacao_do_coorte(tela_real):
-    legendas = " ".join(c.value for c in tela_real.tabs[1].caption)
+    legendas = " ".join(c.value for c in tela_real.tabs[2].caption)
     assert "Regra combinada" in legendas and "painel em formação" in legendas
 
 
@@ -108,8 +108,8 @@ def test_base_pequena_demais_mostra_erro_legivel_sem_quebrar(monkeypatch, tmp_pa
     cache.limpar()
     at = AppTest.from_file(APP, default_timeout=120).run()
     assert not at.exception
-    renderizado = [f"{type(c).__name__}: {str(getattr(c, 'value', ''))[:80]}" for c in filhos(at.tabs[1])]
-    assert any("Não foi possível segmentar" in e.value or "Nenhuma" in e.value for e in at.tabs[1].error), renderizado
+    renderizado = [f"{type(c).__name__}: {str(getattr(c, 'value', ''))[:80]}" for c in filhos(at.tabs[2])]
+    assert any("Não foi possível segmentar" in e.value or "Nenhuma" in e.value for e in at.tabs[2].error), renderizado
     banco.fechar_todas()
 
 
@@ -119,4 +119,4 @@ def test_sem_dados_a_aba_pede_para_carregar(monkeypatch):
     monkeypatch.setattr(carga, "carregar", sem_dados)
     at = AppTest.from_file(APP, default_timeout=60).run()
     assert not at.exception
-    assert any("Carregue os dados na aba Chat" in i.value for i in at.tabs[1].info)
+    assert any("Carregue os dados na aba Chat" in i.value for i in at.tabs[2].info)
