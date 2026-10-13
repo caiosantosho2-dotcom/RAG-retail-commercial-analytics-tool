@@ -65,7 +65,7 @@ As descrições abaixo viram as docstrings. A IA escolhe a ferramenta pela descr
 - **Nunca:** devolver a lista completa de households.
 
 ### 3.4 `calcular_clv(segmento: str | None = None)`
-- **Descrição:** "Estima o valor do cliente (CLV) por segmento RFM, com intervalo de confiança. Use para 'quanto vale cada grupo de clientes'."
+- **Descrição:** "Estima o valor do cliente (CLV) por segmento RFM, com intervalo de confiança. Use para 'quanto vale cada grupo de clientes', 'margem esperada', 'valor esperado de um cliente' ou 'quanto vale um cliente'. Chame sem argumentos, com as premissas do projeto (margem de 25% e horizonte de 52 semanas), e declare-as na resposta; não peça a fórmula da margem ao usuário."
 - **Saída:** por segmento: `clv_medio`, `ic_95`, `n`, `premissas` (horizonte, margem assumida, método); `e_dai`; `versao_base`.
 - **Regras:** premissas sempre explícitas no retorno; IC via bootstrap.
 

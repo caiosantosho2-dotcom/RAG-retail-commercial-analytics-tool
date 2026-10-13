@@ -134,3 +134,13 @@ def test_fieis_e_do_segmento_rfm_e_nao_de_cliente_de_alta_frequencia():
         primeiro = pontuar(pergunta)[0][1]["termo"]
         assert primeiro.startswith("Segmentação, CLV"), (pergunta, primeiro)
     assert buscar_termos_relevantes("Os 3 produtos que mais faturam entre os clientes de alta frequência").count("Cliente de alta frequência") == 1
+
+
+@pytest.mark.parametrize("pergunta", [
+    "Quanto vale, em margem esperada nos próximos 12 meses, um household do grupo Fiéis?",
+    "Qual o valor total esperado, em margem, dos 2.500 clientes nos próximos 12 meses?",
+    "Quanto vale um cliente?",
+])
+def test_perguntas_de_margem_esperada_trazem_o_termo_do_clv_com_as_premissas(pergunta):
+    achados = buscar_termos_relevantes(pergunta)
+    assert "margem de 25% e horizonte de 52 semanas" in achados

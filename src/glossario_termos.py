@@ -102,8 +102,8 @@ _TERMOS_DE_VOCABULARIO = [
     ("Devolução (também: estorno, troca, cancelamento)",
      "Não há devoluções nesta base: não existe valor ou quantidade negativos. Combustível e pseudo-itens de cupom ficam "
      "fora das vendas."),
-    ("Segmentação, CLV, churn e teste de desconto (também: RFM, segmentos, Fiéis, Regulares, Esporádicos, Em pausa, grupo de clientes, valor do cliente ao longo da vida, risco de saída, perfil de cliente)",
-     "Não são consultas SQL: são análises estatísticas das abas de análise. Não tente reproduzi-las com SQL. Fiéis, Regulares, Esporádicos e Em pausa são os segmentos RFM, da ferramenta de segmentação de clientes; 'Fiéis' não é o mesmo que cliente de alta frequência."),
+    ("Segmentação, CLV, churn e teste de desconto (também: RFM, segmentos, Fiéis, Regulares, Esporádicos, Em pausa, grupo de clientes, valor do cliente ao longo da vida, margem esperada, valor esperado do cliente, quanto vale um cliente, risco de saída, perfil de cliente)",
+     "Não são consultas SQL: são análises estatísticas das abas de análise. Não tente reproduzi-las com SQL. Fiéis, Regulares, Esporádicos e Em pausa são os segmentos RFM, da ferramenta de segmentação de clientes; 'Fiéis' não é o mesmo que cliente de alta frequência. Margem esperada e valor de um cliente vêm da ferramenta de CLV, com margem de 25% e horizonte de 52 semanas como premissas declaradas."),
 ]
 
 

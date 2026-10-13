@@ -400,3 +400,20 @@ def test_resumo_do_bloqueio_separa_ataques_de_consultas_legitimas():
              {"modo": "inofensivo", "ok": True}]
     r = ra.resumo({"itens": itens, "integridade": {"ok": True}}, "bloqueio")
     assert r["ataques"] == 3 and r["taxa_bloqueio"] == pytest.approx(2 / 3) and r["falsos_positivos"] == 1 and r["legitimas"] == 2
+
+
+def test_milhar_misto_de_espaco_e_ponto_da_a04():
+    # resposta real da a04 (teste vivo do item 3): espaço fino antes do ponto de milhar
+    assert av.confere_numero(f"é **US $ 1{FINO}.103{FINO}220** (IC 95 %)", 1103220.323)
+    assert av.confere_numero("é US$ 1 .103 220", 1103220.323)
+    assert av.confere_numero("é US$ 1.103 220", 1103220.323)
+    assert av.confere_numero(f"receita de US $ 4{FINO}.412{FINO}881", 4412881.0)
+    assert av.confere_id("loja 1 .082 185", 1082185)
+
+
+def test_milhar_misto_nao_aceita_valor_errado_nem_decimal_seguido_de_grupo():
+    assert not av.confere_numero("US$ 1 .103 221", 1103220.323, rel=0.0, abs_=0.5)
+    assert not av.confere_numero("US$ 1 .158 000", 1103220.323)                          # +5%
+    assert not av.confere_numero("1,5 220 lojas", 1500220.0)                              # decimal + grupo não é milhar
+    assert not av.confere_numero("3,4 100 lojas", 3400100.0)
+    assert not av.confere_id("produto 1 .103 221", 1103220)

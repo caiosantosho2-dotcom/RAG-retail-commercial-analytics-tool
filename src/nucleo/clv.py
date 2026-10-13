@@ -294,7 +294,9 @@ def _arredondar(o):
 def calcular_clv(segmento: str | None = None) -> dict:
     """Estima o valor do cliente (CLV) por segmento RFM, com intervalo de confiança.
 
-    Use para "quanto vale cada grupo de clientes". Premissas (margem, horizonte, método) vêm sempre no retorno;
+    Use para "quanto vale cada grupo de clientes", "margem esperada", "valor esperado de um cliente" ou "quanto vale
+    um cliente". Chame sem argumentos, com as premissas do projeto (margem de 25% e horizonte de 52 semanas), e
+    declare-as na resposta; não peça a fórmula da margem ao usuário. Premissas (margem, horizonte, método) vêm sempre no retorno;
     o intervalo é bootstrap de households. Passe `segmento` para filtrar um grupo (os totais continuam os da base inteira).
     """
     try:

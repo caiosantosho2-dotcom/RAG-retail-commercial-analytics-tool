@@ -11,7 +11,7 @@ Fonte das regras: `docs/spec_ferramentas_mcp.md`. Modo de trabalho: `docs/guia_b
 | Pergunta | Ferramenta |
 |---|---|
 | "Quem são os clientes?", "quais segmentos existem?" | `segmentar_clientes` |
-| "Quanto vale cada grupo de clientes?" | `calcular_clv` (`segmento` opcional) |
+| "Quanto vale cada grupo de clientes?", "margem esperada", "valor esperado de um cliente", "quanto vale um cliente" | `calcular_clv` (`segmento` opcional; premissas padrão declaradas, sem pedir a fórmula da margem) |
 | "Quem vai parar de comprar?", "qual segmento está em risco?" | `prever_churn` (`segmento` opcional) |
 | "Os segmentos recebem desconto diferente?" | `testar_desconto_entre_segmentos` |
 | Número pontual (vendas, ticket, loja) | `executar_consulta` (skill `consultas-sql`) |

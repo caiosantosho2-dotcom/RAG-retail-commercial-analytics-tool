@@ -2,7 +2,7 @@
 
 Funções puras (testadas em tests/test_eval.py). Três tipos de valor esperado:
 - numero: algum número do texto cai dentro da tolerância, aceitando "31,21", "31.21", "65.930,76", "65,930.76",
-  "US $ 2 151 812" (espaço, espaço fino ou ";" como milhar), "3,4%", "65,9 mil", "2,1 milhões". Tolerância: 1% por padrão;
+  "US $ 2 151 812" (espaço, espaço fino ou ";" como milhar), "1 .103 220" (milhar misto), "3,4%", "65,9 mil", "2,1 milhões". Tolerância: 1% por padrão;
   se o YAML define só `tolerancia_abs`, vale só ela; se define as duas, vale a maior. O sinal é ignorado:
   "caiu 5,7%" e "-5,7%" valem o mesmo; quem confere a direção é a leitura humana da resposta;
 - id: o inteiro aparece como número inteiro isolado (ex.: STORE_ID, PRODUCT_ID), com ou sem separador de milhar, sem tolerância;
@@ -17,6 +17,8 @@ ABS_PADRAO = 0.06
 # Espaços que a resposta usa como separador de milhar: comum, sem quebra, fino, estreito sem quebra, de figura.
 _ESPACOS = "\u00a0\u2009\u202f\u2007"
 _MILHAR_COM_ESPACO = re.compile(r"(?<![\d.,])\d{1,3}(?:[ ;]\d{3})+(?![\d])")
+# Milhar misto: espaço e ponto/vírgula no mesmo número ("1 .103 220", "1.103 220"); só vale se todos os grupos têm 3 dígitos.
+_MILHAR_MISTO = re.compile(r"(?<![\d.,])\d{1,3}(?:\s?[.,]\d{3}|[ ;]\d{3})+(?![\d])")
 _NUMERO = re.compile(r"(?<![\w.,])\d[\d.,]*")
 _ESCALA = re.compile(r"\s*(mil|k|milh[õo]es|milh[ãa]o|mi)\b", re.I)
 
@@ -28,6 +30,9 @@ def _sem_acento(texto: str) -> str:
 def _normalizar(texto: str) -> str:
     """Junta "5 569 230" e "2;151;812" em um só número (grupos de 3 dígitos depois de 1 a 3). O prefixo "US $" não atrapalha."""
     texto = re.sub(f"[{_ESPACOS}]", " ", texto or "")
+    texto = _MILHAR_MISTO.sub(
+        lambda m: re.sub(r"[ .,;]", "", m.group()) if re.search(r"[ ;]", m.group()) and re.search(r"[.,]", m.group()) else m.group(),
+        texto)
     return _MILHAR_COM_ESPACO.sub(lambda m: re.sub(r"[ ;]", "", m.group()), texto)
 
 

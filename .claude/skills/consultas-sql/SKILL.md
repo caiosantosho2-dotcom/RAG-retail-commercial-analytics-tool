@@ -33,7 +33,7 @@ Fonte das regras: `docs/spec_ferramentas_mcp.md`. Se algo aqui contradisser a sp
 - Escreva um teste que compare cada view com um cálculo feito à mão numa amostra.
 
 ## Ao responder perguntas com executar_consulta
-- Se a pergunta for ambígua (qual loja? qual período?), pergunte antes de consultar.
+- Pergunte antes de consultar só quando nenhuma ferramenta nem premissa do projeto cobre o caso (qual loja? qual período?). "Margem esperada", "valor esperado de um cliente" e "quanto vale um cliente" vão para `calcular_clv`, com as premissas padrão (margem 25%, 52 semanas) declaradas; não peça a fórmula da margem.
 - Mostre a query usada junto com a resposta.
 - Responda em linguagem de negócio, com o número e o contexto (contra o ano anterior, quando fizer sentido).
 - Faça sanity check: ticket médio de supermercado na casa de dezenas de dólares (aqui, cerca de US$ 31), não milhares; % de desconto na casa de 15%.

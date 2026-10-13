@@ -237,3 +237,14 @@ def test_prompt_separa_total_geral_do_total_like_for_like():
     p = agente.INSTRUCOES_SISTEMA
     assert "cobrem só as lojas like-for-like" in p
     assert "nunca use esse total no lugar do total geral" in p
+
+
+def test_prompt_manda_margem_esperada_para_calcular_clv_sem_perguntar():
+    p = agente.INSTRUCOES_SISTEMA
+    assert "só quando nenhuma ferramenta nem premissa do projeto cobre o caso" in p
+    assert "chame calcular_clv" in p and "nunca peça a fórmula da margem" in p
+
+
+def test_prompt_define_o_padrao_de_escrita_dos_valores_monetarios():
+    p = agente.INSTRUCOES_SISTEMA
+    assert "US$ 1.103.220" in p and "nenhum espaço dentro do número" in p
