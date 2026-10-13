@@ -310,3 +310,22 @@ def test_catalogo_compacto_cabe_no_prompt():
     texto = descrever.catalogo_compacto()
     assert "vw_yoy_resumo" in texto and "Janela atual: semanas 9-10" in texto
     assert len(texto) < 9000   # ~2.500 tokens no máximo: o catálogo de verdade tem 11 views
+
+
+@pytest.mark.parametrize("sql,nome", [
+    ("SELECT * FROM segmentar_clientes()", "segmentar_clientes"),
+    ("SELECT * FROM calcular_clv() LIMIT 20", "calcular_clv"),
+    ("SELECT * FROM prever_churn()", "prever_churn"),
+    ("SELECT * FROM testar_desconto_entre_segmentos()", "testar_desconto_entre_segmentos"),
+])
+def test_nome_de_ferramenta_como_funcao_sql_diz_para_chamar_a_ferramenta(sql, nome):
+    r = executar_consulta(sql)
+    recusada(r)
+    assert f"'{nome}' é uma ferramenta, não uma função SQL" in r["erro"]
+    assert f"Chame a ferramenta {nome} diretamente" in r["sugestao"] and "executar_consulta" in r["sugestao"]
+
+
+def test_funcao_de_tabela_que_nao_e_ferramenta_mantem_a_sugestao_antiga():
+    r = executar_consulta("SELECT * FROM range(5)")
+    assert "não é uma ferramenta" not in r["erro"] and "ferramenta" not in r["erro"].split("(")[0]
+    assert "vw_*" in r["sugestao"]

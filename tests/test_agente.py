@@ -157,7 +157,7 @@ def test_loop_de_ferramentas_e_cortado_pelo_limite_de_recursao():
     r = agente.perguntar(ag, "ticket", registrar=False)
     assert r.erro and "Limite de passos" in r.erro
     assert r.texto != r.erro and "Não consegui concluir a resposta" in r.texto   # resposta parcial, não só o erro
-    assert "O que já obtive:" in r.texto and "ticket_medio = 9,50" in r.texto and "O que faltou:" in r.texto
+    assert "O que já obtive (" in r.texto and "ticket_medio = 9,50" in r.texto and SQL_TICKET[:40] in r.texto and "O que faltou:" in r.texto
     assert r.ferramentas and len(r.consultas) >= 3                              # o que foi feito não se perde
 
 
@@ -170,9 +170,24 @@ def test_estouro_do_limite_sem_resultado_diz_o_que_faltou():
 
 
 def test_resposta_parcial_mostra_ate_3_linhas_e_as_3_ultimas_consultas():
-    cs = [agente.Consulta(sql=f"s{i}", colunas=["a"], linhas=[[float(i)]] * 5) for i in range(5)]
+    cs = [agente.Consulta(sql=f"SELECT {i} AS a FROM vw_x WHERE periodo = 'atual'", colunas=["a"], linhas=[[float(i)]] * 5)
+          for i in range(5)]
     txt = agente.resposta_parcial(cs, ["executar_consulta"], 6)
     assert txt.count("\n- ") == 3 and "(+2 linhas)" in txt and "a = 4,00" in txt and "a = 0,00" not in txt
+    assert "\n- `SELECT 4 AS a FROM vw_x WHERE periodo = 'atual'` → a = 4,00" in txt   # número vem com a consulta
+    assert "não filtra período" not in txt
+
+
+def test_resposta_parcial_avisa_quando_a_consulta_nao_filtra_periodo_e_conta_as_recusadas():
+    cs = [agente.Consulta(sql="SELECT SUM(faturamento) AS total_faturamento\nFROM vw_vendas_item",
+                          colunas=["total_faturamento"], linhas=[[7376322.37]])]
+    cs += [agente.Consulta(sql="SELECT * FROM segmentar_clientes()",
+                           erro="Fonte de dados não permitida (TABLE_FUNCTION): 'segmentar_clientes' é uma ferramenta")] * 5
+    txt = agente.resposta_parcial(cs, ["executar_consulta"] * 6, 6)
+    assert "`SELECT SUM(faturamento) AS total_faturamento FROM vw_vendas_item` → total_faturamento = 7.376.322,37" in txt
+    assert "a consulta não filtra período" in txt and "todo o histórico" in txt
+    assert "Consultas recusadas ou com erro: 5 (5× Fonte de dados não permitida" in txt
+    assert "nenhum é a resposta final" in txt
 
 
 def test_uso_e_registrado_em_arquivo(ambiente):

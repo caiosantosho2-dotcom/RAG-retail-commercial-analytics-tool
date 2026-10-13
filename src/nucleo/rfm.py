@@ -293,9 +293,10 @@ def _resultado(cur, n_clusters: int | None) -> tuple[dict, pd.DataFrame]:
 
 @registrar_chamada("segmentar_clientes")
 def segmentar_clientes(n_clusters: int | None = None) -> dict:
-    """Segmenta os households por RFM com K-Means e devolve o perfil e o tamanho de cada segmento.
+    """Segmenta os households por RFM com K-Means e devolve o perfil, o tamanho e a parcela do faturamento (pct_faturamento) de cada segmento.
 
-    Use para "quem são os clientes", "quais segmentos existem" ou antes de comparar segmentos.
+    Use para "quem são os clientes", "quais segmentos existem", "que parcela do faturamento vem de cada grupo" ou
+    antes de comparar segmentos.
     Se n_clusters não for informado, o K é escolhido pela regra combinada (silhueta, estabilidade e
     tamanho dos segmentos). Nunca devolve a lista de households.
     """

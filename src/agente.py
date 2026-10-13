@@ -10,6 +10,7 @@ import contextlib
 import functools
 import re
 import time
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -157,21 +158,33 @@ def _valor_curto(v) -> str:
     return f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if isinstance(v, float) else str(v)
 
 
+_FILTRO_DE_PERIODO = re.compile(r"\b(periodo|semana\w*|week_no|data_id|data|day|start_day|end_day)\b", re.I)
+
+
 def resposta_parcial(consultas: list[Consulta], ferramentas: list[str], rodadas: int) -> str:
     """Texto para quando o agente estoura o limite de passos: o que já veio das ferramentas e o que faltou.
-    Montado só com o que as ferramentas devolveram; não chama o modelo de novo."""
+    Montado só com o que as ferramentas devolveram (não chama o modelo de novo). Cada número vem com a consulta
+    que o gerou e, se ela não filtra período, com o aviso de que pode cobrir o histórico inteiro."""
     linhas = [f"Não consegui concluir a resposta dentro do limite de {rodadas} rodadas de ferramenta."]
     ok = [c for c in consultas if not c.erro and c.linhas]
     if ok:
-        linhas.append("O que já obtive:")
+        linhas.append("O que já obtive (cada número vem da consulta indicada; nenhum é a resposta final):")
         for c in ok[-3:]:
+            sql = re.sub(r"\s+", " ", c.sql).strip()
             amostra = "; ".join(", ".join(f"{col} = {_valor_curto(v)}" for col, v in zip(c.colunas, linha))
                                 for linha in c.linhas[:3])
-            linhas.append(f"- {amostra}" + (f" (+{len(c.linhas) - 3} linhas)" if len(c.linhas) > 3 else ""))
+            linhas.append(f"- `{sql[:160]}{'…' if len(sql) > 160 else ''}` → {amostra}"
+                          + (f" (+{len(c.linhas) - 3} linhas)" if len(c.linhas) > 3 else ""))
+            if not _FILTRO_DE_PERIODO.search(sql):
+                linhas.append("  (a consulta não filtra período: o valor pode cobrir todo o histórico, não só a janela atual)")
     elif ferramentas:
         linhas.append("Chamei " + ", ".join(dict.fromkeys(ferramentas)) + ", mas nenhuma consulta trouxe resultado utilizável.")
     else:
         linhas.append("Nenhuma ferramenta chegou a devolver resultado.")
+    recusadas = Counter(re.sub(r"\s+", " ", c.erro)[:140] for c in consultas if c.erro)
+    if recusadas:
+        linhas.append(f"Consultas recusadas ou com erro: {sum(recusadas.values())} ("
+                      + "; ".join(f"{n}× {motivo}" for motivo, n in recusadas.most_common(2)) + ").")
     faltou = "a conclusão final ligando esses números à pergunta" if ok else "um resultado que responda à pergunta"
     linhas.append(f"O que faltou: {faltou}. Tente de novo ou divida a pergunta em partes menores "
                   "(por exemplo, primeiro a lista de households, depois o gasto).")

@@ -59,7 +59,7 @@ As descrições abaixo viram as docstrings. A IA escolhe a ferramenta pela descr
 - **Pronto quando:** passa nos testes de guard-rail e acerta as perguntas de consulta do conjunto de avaliação.
 
 ### 3.3 `segmentar_clientes(n_clusters: int | None = None)`
-- **Descrição:** "Segmenta os households por RFM com K-Means e devolve o perfil e o tamanho de cada segmento. Use para 'quem são os clientes', 'quais segmentos existem' ou antes de comparar segmentos. Se n_clusters não for informado, o K é escolhido pela regra combinada (silhueta, estabilidade e tamanho dos segmentos)."
+- **Descrição:** "Segmenta os households por RFM com K-Means e devolve o perfil, o tamanho e a parcela do faturamento (pct_faturamento) de cada segmento. Use para 'quem são os clientes', 'quais segmentos existem', 'que parcela do faturamento vem de cada grupo' ou antes de comparar segmentos. Se n_clusters não for informado, o K é escolhido pela regra combinada (silhueta, estabilidade e tamanho dos segmentos)."
 - **Saída:** `k_usado`, `metodo_escolha_k`, `silhueta`, `segmentos` (nome, nº de households, R/F/V médios, % do faturamento), `estabilidade` (concordância entre sementes), `excluidos` (quantos e por quê), `e_dai`, `versao_base`.
 - **Regras:** nomes dos segmentos vêm do perfil real; nenhum segmento sem nome; semente fixa; resultado cacheado por `versao_base`.
 - **Nunca:** devolver a lista completa de households.

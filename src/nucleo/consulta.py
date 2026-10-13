@@ -32,6 +32,9 @@ TIMEOUT_S = CFG["consulta"]["timeout_segundos"]
 MAX_BYTES = CFG["consulta"]["max_bytes_retorno"]
 TABELAS_PERMITIDAS = [p.lower() for p in CFG["consulta"]["tabelas_permitidas"]]
 FONTES_PERMITIDAS = {"BASE_TABLE", "JOIN", "SUBQUERY", "EXPRESSION_LIST", "EMPTY"}
+# Nomes das ferramentas do servidor: o modelo às vezes tenta chamá-las como funções de tabela do SQL.
+FERRAMENTAS_DE_ANALISE = ("segmentar_clientes", "calcular_clv", "prever_churn", "testar_desconto_entre_segmentos",
+                          "descrever_dados", "executar_consulta")
 
 
 class ConsultaRecusada(Exception):
@@ -101,6 +104,13 @@ def validar_sql(cur, sql: str) -> None:
     tabelas, tipos = _analisar(arvore)
     proibidos = tipos - FONTES_PERMITIDAS
     if proibidos:
+        ferramenta = re.search(r"\b(" + "|".join(FERRAMENTAS_DE_ANALISE) + r")\s*\(", sql, re.I)
+        if ferramenta:
+            nome = ferramenta.group(1).lower()
+            raise ConsultaRecusada(
+                f"Fonte de dados não permitida ({', '.join(sorted(proibidos))}): '{nome}' é uma ferramenta, não uma função SQL.",
+                f"Chame a ferramenta {nome} diretamente, sem executar_consulta: ela devolve o resultado pronto, "
+                "sem SQL. Não repita esta consulta.")
         raise ConsultaRecusada(
             f"Fonte de dados não permitida ({', '.join(sorted(proibidos))}): funções de tabela e comandos "
             "como SHOW, DESCRIBE ou PIVOT não são aceitos.",
