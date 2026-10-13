@@ -417,3 +417,15 @@ def test_milhar_misto_nao_aceita_valor_errado_nem_decimal_seguido_de_grupo():
     assert not av.confere_numero("1,5 220 lojas", 1500220.0)                              # decimal + grupo não é milhar
     assert not av.confere_numero("3,4 100 lojas", 3400100.0)
     assert not av.confere_id("produto 1 .103 221", 1103220)
+
+
+def test_medicao_do_prompt_monta_o_relatorio_com_as_partes_fixas_e_por_pergunta():
+    from eval import medir_prompt
+    m = {"instrucoes": 4000, "catalogo": 5000, "ferramentas": 3500, "por_ferramenta": {"a": 1000, "b": 2500},
+         "glossario_medio": 900.0, "glossario_max": 1600, "glossario_completo": 12000, "pergunta_media": 70.0,
+         "consultas": {"q01": 700, "q02": 800}, "analises": {"segmentar_clientes": 5000},
+         "descrever": {"descrever_dados()": 6800}, "termos_maiores": [(900, "Campanha")], "top_k": 4, "limiar": 0.3}
+    txt = medir_prompt.relatorio(m, 4.0, "teste")
+    assert "Total fixo" in txt and "12,500" in txt and "3,125" in txt          # (4000+5000+3500) / 4
+    assert "Glossário injetado (top 4, limiar 0.3)" in txt and "Custo de uma pergunta típica" in txt
+    assert "segmentar_clientes" in txt and "1 consulta (2 chamadas)" in txt
