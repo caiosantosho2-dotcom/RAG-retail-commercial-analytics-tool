@@ -178,7 +178,7 @@ def _arquivos_da_pasta(pasta: Path) -> list[Path]:
 
 
 def _carregar_do_pacote(pasta_pacote: Path | None, pasta_bancos: Path, cfg: dict, progresso) -> ResultadoCarga:
-    """Terceira origem: o pacote Parquet versionado no repositório (app publicado, sem os CSV). Mesma versão e mesmos números do ETL."""
+    """Terceira origem: o pacote Parquet gerado localmente por `python -m src.pacote exportar` (não vai para o Git). Mesma versão e mesmos números do ETL."""
     m = pacote.verificar(pasta_pacote, cfg)
     versao = m["versao_base"]
     with _trava:
@@ -222,7 +222,7 @@ def carregar(upload: dict[str, bytes] | None = None, pastas: list[Path] | None =
                 return _carregar_do_pacote(pasta_pacote, pasta_bancos, cfg, progresso)
             if not arquivos:
                 raise ErroCarga("Nenhum dado encontrado. Arraste os arquivos exportados do BI para a tela de carga "
-                                "ou coloque-os na pasta data/.")
+                                "ou coloque-os na pasta data/. Sem arquivos próprios: rode `python baixar_dados.py` e `python -m src.etl`.")
         fontes, origem, avisos = identificar_fontes(arquivos, trabalho)
         _validar(fontes, origem)
         avisos += _completar_opcionais(fontes, trabalho)

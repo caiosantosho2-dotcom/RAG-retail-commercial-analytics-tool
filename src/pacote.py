@@ -1,7 +1,7 @@
-"""Pacote de dados em Parquet: a base já limpa, pequena o bastante para ir ao Git (cerca de 18 MB), para o app publicado.
+"""Pacote de dados em Parquet: recurso LOCAL (cerca de 18 MB, em `data/`, fora do Git). Não é forma de distribuir dados: o dataset é da
+dunnhumby e não vai para o repositório.
 
-Por que existe: os CSV originais (700 MB, sobretudo `causal_data`) não vão para o repositório, e construir o banco a partir deles leva
-cerca de 2 minutos. O pacote guarda as tabelas que o ETL já produziu (vendas limpas, ajustes, dimensões, campanhas, cupons e o
+Por que existe: construir o banco a partir dos CSV (700 MB, sobretudo `causal_data`) leva cerca de 2 minutos. O pacote guarda as tabelas que o ETL já produziu (vendas limpas, ajustes, dimensões, campanhas, cupons e o
 agregado de display/mailer) e o relatório de qualidade. Carregar o pacote recria o DuckDB e as views em segundos.
 
 Por que o histórico inteiro, e não só as duas janelas: o risco de pausa usa o histórico desde a semana 5, o CLV calibra nas semanas 24

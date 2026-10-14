@@ -3,7 +3,7 @@
   python -m eval.rodar_avaliacao --modo oraculo          sem LLM: SQL esperado (negócio) e valores das ferramentas (análise)
   python -m eval.rodar_avaliacao --modo bloqueio         sem LLM: perguntas maliciosas e cargas de ataque pelo servidor MCP
   python -m eval.rodar_avaliacao --modo vivo             com o agente via MCP (precisa de GROQ_API_KEY no ambiente)
-  python -m eval.rodar_avaliacao --modo vivo --ids q01,q05 --modelo llama-3.1-8b-instant
+  python -m eval.rodar_avaliacao --modo vivo --ids q01,q05 --modelo openai/gpt-oss-20b
 
 Rodar sempre que mudar prompt, glossário, views, descrições das ferramentas ou skills.
 """

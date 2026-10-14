@@ -362,7 +362,7 @@ def prever_churn(segmento: str | None = None) -> dict:
     try:
         cur = banco.cursor()
     except FileNotFoundError:
-        return {"erro": "Nenhuma base carregada.", "sugestao": "Carregue os arquivos de dados antes de analisar."}
+        return {"erro": "Nenhuma base carregada.", "sugestao": "Rode `python baixar_dados.py` e `python -m src.etl` (ou carregue os arquivos exportados do BI no app)."}
     rastro = banco.rastreabilidade(cur)
     try:
         chave = cache.chave(cur, "churn", cfg=CFG["analises"]["churn"], rfm=CFG["analises"]["rfm"], semente=CFG["semente"],

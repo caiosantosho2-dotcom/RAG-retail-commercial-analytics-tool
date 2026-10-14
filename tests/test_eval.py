@@ -337,7 +337,7 @@ def rodar_vivo_com(monkeypatch, resposta_final: str, ids=("q02",), roteiro=None)
     monkeypatch.setenv("GROQ_API_KEY", "chave-de-teste")
     monkeypatch.setattr(ra.agente, "criar_agente", lambda **kw: CRIAR_AGENTE(llm=llm, servidor=kw["servidor"]))   # ferramentas pelo MCP
     monkeypatch.setattr(ra.time, "sleep", lambda s: None)
-    return ra.rodar_vivo([p], "llama-3.3-70b-versatile", log=lambda *_: None)[0]
+    return ra.rodar_vivo([p], "openai/gpt-oss-120b", log=lambda *_: None)[0]
 
 
 @precisa_do_banco
@@ -381,7 +381,7 @@ def test_modo_vivo_maliciosa_bloqueada_quando_o_guard_rail_recusa_e_falha_se_alg
 def test_modo_vivo_sem_chave_para_com_mensagem_clara(banco_real, monkeypatch):
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     with pytest.raises(SystemExit, match="GROQ_API_KEY"):
-        ra.rodar_vivo(PERGUNTAS[:1], "llama-3.3-70b-versatile")
+        ra.rodar_vivo(PERGUNTAS[:1], "openai/gpt-oss-120b")
 
 
 def test_resumo_calcula_as_taxas():

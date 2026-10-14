@@ -312,7 +312,7 @@ def segmentar_clientes(n_clusters: int | None = None) -> dict:
     try:
         cur = banco.cursor()
     except FileNotFoundError:
-        return {"erro": "Nenhuma base carregada.", "sugestao": "Carregue os arquivos de dados antes de analisar."}
+        return {"erro": "Nenhuma base carregada.", "sugestao": "Rode `python baixar_dados.py` e `python -m src.etl` (ou carregue os arquivos exportados do BI no app)."}
     rastro = banco.rastreabilidade(cur)
     if erro:
         return {**erro, **rastro}      # a spec pede versao_base e janela em todo retorno, inclusive no erro

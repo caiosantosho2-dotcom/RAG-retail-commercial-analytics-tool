@@ -203,7 +203,7 @@ def _aba_dados():
     if c is None:
         st.info("Nenhum dado carregado ainda. Envie os arquivos na aba Chat.")
         return
-    origem = {"upload": "arquivos enviados", "pacote": "pacote de dados (Parquet versionado no repositório)"}.get(c.origem, "pasta de dados")
+    origem = {"upload": "arquivos enviados", "pacote": "pacote de dados local (Parquet)"}.get(c.origem, "pasta de dados")
     st.markdown(f"Dados carregados dos **{origem}** · versão da base `{c.versao_base}`"
                 + (" · reaproveitada do cache" if c.reaproveitado else ""))
     _resumo(c.resumo)

@@ -95,7 +95,7 @@ def descrever_dados(detalhe: str | None = None) -> dict:
     try:
         cur = banco.cursor()
     except FileNotFoundError:
-        return {"erro": "Nenhuma base carregada.", "sugestao": "Carregue os arquivos de dados antes de consultar."}
+        return {"erro": "Nenhuma base carregada.", "sugestao": "Rode `python baixar_dados.py` e `python -m src.etl` (ou carregue os arquivos exportados do BI no app)."}
     rastro = banco.rastreabilidade(cur)
     colunas = _colunas(cur)
     comentarios = dict(cur.execute("SELECT view_name, comment FROM duckdb_views() WHERE NOT internal").fetchall())

@@ -20,7 +20,7 @@ README = RAIZ / "README.md"
 ESTRUTURA = [
     (".claude/skills/", "skills do Claude Desktop/Code: `consultas-sql`, `analise-estatistica`, `qualidade-validacao`"),
     ("app/", "app Streamlit (`app.py`): chat e abas de análise"),
-    ("data/processed/parquet/", "pacote de dados em Parquet (a base limpa, ~18 MB) que o app publicado carrega"),
+    ("data/processed/parquet/", "pacote de dados em Parquet gerado localmente (fora do Git)"),
     ("docs/", "guia do projeto, rotina de trabalho e a spec das ferramentas MCP (`spec_ferramentas_mcp.md`, fonte única das regras)"),
     ("eval/", "perguntas de negócio, de análise e maliciosas, cargas de ataque e o script de avaliação"),
     ("notebooks/", "notebook narrado (com as saídas salvas), seu construtor, o texto-fonte e os PNG dos gráficos"),

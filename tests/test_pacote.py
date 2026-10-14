@@ -1,4 +1,4 @@
-"""Pacote Parquet (a base limpa, versionada no repositório, que o app publicado carrega sem os CSV): íntegro, em dia com o config,
+"""Pacote Parquet (recurso local: a base limpa exportada pelo ETL, fora do Git): íntegro, em dia com o config,
 pequeno o bastante para o Git e, sobretudo, igual ao banco do ETL: mesmas tabelas, mesmas views e os mesmos números nas análises."""
 
 import json
@@ -33,7 +33,7 @@ def test_pacote_esta_integro_e_em_dia_com_o_config_e_a_versao_do_etl():
     assert {t["tabela"] for t in m["tabelas"]} == set(pacote.TABELAS_PACOTE) and len(m["arquivos_de_origem"]) == len(etl.TABELAS)
 
 
-def test_pacote_cabe_no_git_nenhum_arquivo_perto_do_limite_de_100_mb():
+def test_pacote_nenhum_arquivo_perto_do_limite_de_100_mb():
     arquivos = list(pacote.PASTA.glob("*"))
     assert max(a.stat().st_size for a in arquivos) < 30_000_000 and sum(a.stat().st_size for a in arquivos) < 40_000_000
 

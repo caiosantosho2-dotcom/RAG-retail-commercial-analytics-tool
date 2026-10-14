@@ -7,8 +7,8 @@ Callback do LangChain que soma tokens consumidos em cada chamada ao Groq.
 from langchain_core.callbacks import BaseCallbackHandler
 
 LIMITES_REFERENCIA_TPM = {
-    "llama-3.3-70b-versatile": 12000,
-    "llama-3.1-8b-instant": 6000,
+    "openai/gpt-oss-120b": 8000,
+    "openai/gpt-oss-20b": 8000,
 }
 
 

@@ -60,8 +60,8 @@ def criar_servidor() -> FastMCP:
 
 
 def garantir_banco(padrao: Path | None = None, pasta_pacote: Path | None = None, pasta_bancos: Path | None = None) -> Path | None:
-    """Sem `ASSISTENTE_BANCO` e sem o banco do ETL, constrói (ou reaproveita) o banco a partir do pacote Parquet do repositório. Assim o
-    servidor funciona logo depois do `git clone`, sem baixar nada. Devolve o banco usado, ou None se não há de onde tirar dados."""
+    """Sem `ASSISTENTE_BANCO` e sem o banco do ETL, constrói (ou reaproveita) o banco a partir do pacote Parquet local (gerado por `python -m src.pacote exportar`).
+    Sem pacote nem banco devolve None, e as ferramentas respondem pedindo `baixar_dados.py` e `python -m src.etl`."""
     padrao = Path(padrao or RAIZ / CFG["banco"]["arquivo"])
     if padrao.exists() or not pacote.existe(pasta_pacote):
         return padrao if padrao.exists() else None

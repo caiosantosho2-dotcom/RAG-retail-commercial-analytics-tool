@@ -172,7 +172,7 @@ def executar_consulta(sql: str, limite: int = LIMITE_PADRAO) -> dict:
     try:
         cur = banco.cursor()
     except FileNotFoundError:
-        return _erro("Nenhuma base carregada.", "Carregue os arquivos de dados antes de consultar.")
+        return _erro("Nenhuma base carregada.", "Rode `python baixar_dados.py` e `python -m src.etl` (ou carregue os arquivos exportados do BI no app).")
 
     rastro = banco.rastreabilidade(cur)
     sql_original = (sql or "").strip()
