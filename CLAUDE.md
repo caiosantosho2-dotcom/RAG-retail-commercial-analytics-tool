@@ -411,4 +411,4 @@ Chave do Groq: variável `GROQ_API_KEY` (avaliação), `st.secrets["GROQ_API_KEY
   "E daí?": `conclusao` de uma frase sem estatística, `evidencia` com os números de negócio, `detalhes_tecnicos` (estatística) num expander
   fechado; `md()` escapa `$` em todas as abas. Formato registrado em `docs/spec_ferramentas_mcp.md`.
 - 2026-10-13 — Composição do prompt (medição, sem otimizar): fixo ~2,9 mil tokens (instruções 32%, catálogo 41%, ferramentas 28%); pergunta típica
-  com 4 consultas ~17 mil. Redução da parte fixa fica no roadmap (`eval/MEDICAO_PROMPT.md`).
+  com 4 consultas ~17 mil; média observada nas rodadas vivas 12,3 mil (mín. 3,3 mil, máx. 32,3 mil, n=50). Redução da parte fixa fica no roadmap (`eval/MEDICAO_PROMPT.md`).
