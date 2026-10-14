@@ -162,11 +162,18 @@ def backtest(cur, w: dict, k: int, nomes_atuais: set[str], tabela_cal: pd.DataFr
 def montar_e_dai(segs: list[dict], total: dict, prem: dict, bt: dict | None, avisos: list[str]) -> dict:
     topo = max(segs, key=lambda s: s["clv_medio"])
     pct_topo = 100 * topo["clv_total_usd"] / total["clv_total_usd"]
-    conclusao = (f"{topo['nome']} valem {_usd(topo['clv_medio'])} por household em {prem['horizonte_semanas']} semanas "
-                 f"(IC 95%: {_usd(topo['ic_95'][0])} a {_usd(topo['ic_95'][1])}) e concentram {_pct(pct_topo)} do valor esperado "
-                 f"({_usd(total['clv_total_usd'])} de margem).")
+    conclusao = (f"{topo['nome']} valem {_usd(topo['clv_medio'])} de margem por household nas próximas "
+                 f"{prem['horizonte_semanas']} semanas.")
+    evidencia = (f"Concentram {_pct(pct_topo)} do valor esperado: {_usd(total['clv_total_usd'])} de margem em "
+                 f"{prem['horizonte_semanas']} semanas, com margem assumida de {_pct(100 * prem['margem'])}.")
+    detalhes = [f"IC 95% do valor por household dos {topo['nome']}: {_usd(topo['ic_95'][0])} a {_usd(topo['ic_95'][1])}.",
+                f"IC 95% do valor esperado total: {_usd(total['ic_95'][0])} a {_usd(total['ic_95'][1])} de margem."]
+    if bt:
+        detalhes.append(f"Backtest de {bt['horizonte_semanas']} semanas: o método errou {_pct(abs(bt['total']['erro_metodo_pct']), 1)} no total "
+                        f"(regra ingênua: {_pct(abs(bt['total']['erro_ingenuo_pct']), 1)}) e ganhou em "
+                        f"{bt['segmentos_em_que_o_metodo_ganha']} de {bt['segmentos_avaliados']} grupos.")
     if bt and not bt["metodo_ganha_no_total"] and bt["segmentos_em_que_o_metodo_ganha"] * 2 < bt["segmentos_avaliados"]:
-        conclusao += " Atenção: no backtest o método não superou a regra ingênua; trate os valores como ordem de grandeza."
+        evidencia += " Atenção: no backtest o método não superou a regra ingênua; trate os valores como ordem de grandeza."
     retorno_pausa = [s for s in segs if s.get("ritmo_relativo") and s["ritmo_relativo"] > 1.3]
     acao = (f"Priorizar a retenção dos {topo['nome']}: cada 1% de gasto perdido neles pesa mais que em qualquer outro grupo.")
     if retorno_pausa:
@@ -194,7 +201,8 @@ def montar_e_dai(segs: list[dict], total: dict, prem: dict, bt: dict | None, avi
                "Razões altas nos grupos de menor gasto refletem em parte regressão à média (parte do gasto baixo de uma janela é "
                "acaso de calendário), sem desconto financeiro em 12 meses.")
     lim += avisos
-    return {"conclusao": conclusao, "acao_recomendada": acao, "impacto_estimado": impacto, "limitacoes": " ".join(lim)}
+    return {"conclusao": conclusao, "evidencia": evidencia, "acao_recomendada": acao, "impacto_estimado": impacto,
+            "limitacoes": " ".join(lim), "detalhes_tecnicos": detalhes}
 
 
 # --------------------------------------------------------------------------- análise

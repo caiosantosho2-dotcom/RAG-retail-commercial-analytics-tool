@@ -56,8 +56,8 @@ def test_o_e_dai_e_o_primeiro_elemento_antes_de_qualquer_grafico(tela_real):
 def test_a_aba_mostra_o_mesmo_e_dai_e_os_mesmos_numeros_da_ferramenta(tela_real):
     banco.definir_banco(BANCO)
     r = prever_churn()
-    textos = " ".join(m.value for m in tela_real.tabs[4].markdown)
-    for bloco in ("conclusao", "acao_recomendada", "impacto_estimado"):
+    textos = " ".join(m.value.replace("\\$", "$") for m in tela_real.tabs[4].markdown)
+    for bloco in ("conclusao", "evidencia", "acao_recomendada", "impacto_estimado"):
         assert r["e_dai"][bloco] in textos
     metricas = {m.label: m.value for m in tela_real.tabs[4].metric}
     assert metricas["Households ativos avaliados"] == "2.203"

@@ -44,7 +44,7 @@ Há dois públicos, com duas ferramentas paralelas:
 
 ## 2. O que o produto faz
 
-- **Chat (primeira aba).** Pergunta em português de negócio, resposta em texto com o número e o contexto. O SQL usado aparece num expander, o glossário de negócio é injetado na pergunta e a barra lateral mostra o consumo de tokens da sessão.
+- **Chat (segunda aba, depois do Resumo).** Pergunta em português de negócio, resposta em texto com o número e o contexto. O SQL usado aparece num expander, o glossário de negócio é injetado na pergunta e a barra lateral mostra o consumo de tokens da sessão.
 - **Segmentos (RFM).** Quem são os clientes, em quatro segmentos estáveis, com retenção por coorte de apoio.
 - **Valor do cliente (CLV).** Quanto cada grupo vale em margem nas próximas 52 semanas, com intervalo de confiança e teste retroativo.
 - **Risco de pausa (churn).** Quem tende a ficar 8 semanas sem comprar, contra uma regra simples, com o dinheiro em risco por segmento.

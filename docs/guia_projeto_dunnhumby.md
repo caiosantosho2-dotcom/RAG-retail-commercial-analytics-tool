@@ -225,7 +225,7 @@ Esses três arquivos, comentados com o que reaproveitar e o que reescrever, deve
 
 ## 9. Entregáveis esperados
 
-1. **App Streamlit publicado** — o produto principal. Aba de chat (linguagem natural + glossário + contador de tokens) como primeira aba, seguida das abas de análise (RFM/clustering com cohort de apoio, CLV, churn, teste de hipótese). Carga por upload ou pasta, deploy no Streamlit Community Cloud.
+1. **App Streamlit publicado** — o produto principal. Aba Resumo primeiro (os destaques das quatro análises), depois a aba de chat (linguagem natural + glossário + contador de tokens), que é o centro do produto, seguida das abas de análise (RFM/clustering com cohort de apoio, CLV, churn, teste de hipótese). Carga por upload ou pasta, deploy no Streamlit Community Cloud.
 1b. **Servidor MCP + spec + 3 skills** — ferramentas conforme `docs/spec_ferramentas_mcp.md`, testes de guard-rail (`pytest`), avaliação com perguntas de negócio e perguntas maliciosas, skills `consultas-sql`, `analise-estatistica` e `qualidade-validacao`.
 2. **Notebook Jupyter narrado** — mesmas análises estatísticas, com o raciocínio e as escolhas metodológicas explicadas em texto. É onde o recrutador de Ciência de Dados vai conferir o rigor.
 3. **README do repositório, completo** — é o documento de entrada do projeto e deve cobrir a estrutura inteira, não só uma área (nem só análise de dados, nem só varejo, nem só IA). Seções mínimas:

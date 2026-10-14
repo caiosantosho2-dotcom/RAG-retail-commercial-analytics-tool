@@ -75,17 +75,18 @@ TOTAL = {"clv_total_usd": 1_103_220.0, "ic_95": [1_063_210.0, 1_143_641.0], "rec
 def test_e_dai_traz_os_quatro_blocos_premissa_e_limitacao_do_backtest():
     e = montar_e_dai([seg("Fiéis", 857, 820, 0.92), seg("Regulares", 980, 326, 1.15), seg("Esporádicos", 426, 135, 2.1)],
                      TOTAL, PREM, bt(-2.9, -4.0, 5, 5), [])
-    assert set(e) == {"conclusao", "acao_recomendada", "impacto_estimado", "limitacoes"}
-    assert "Fiéis valem US$ 820" in e["conclusao"] and "IC 95%" in e["conclusao"]
+    assert set(e) == {"conclusao", "evidencia", "acao_recomendada", "impacto_estimado", "limitacoes", "detalhes_tecnicos"}
+    assert "Fiéis valem US$ 820" in e["conclusao"] and "IC 95%" not in e["conclusao"]
+    assert "IC 95%" in " ".join(e["detalhes_tecnicos"])
     assert "ritmo de 2,1x" in e["acao_recomendada"] and "Esporádicos" in e["acao_recomendada"]
     assert "margem assumida de 25%" in e["impacto_estimado"] and "US$ 4.412.881" in e["impacto_estimado"]
     assert "é premissa" in e["limitacoes"] and "não pode ser testado" in e["limitacoes"] and "2,9%" in e["limitacoes"]
-    assert "não como previsão individual" in e["limitacoes"] and not any("{" in v for v in e.values())
+    assert "não como previsão individual" in e["limitacoes"] and not any("{" in str(v) for v in e.values())
 
 
 def test_e_dai_avisa_quando_o_metodo_nao_supera_a_regra_ingenua():
     e = montar_e_dai([seg("Fiéis", 857, 820)], TOTAL, PREM, bt(-9.0, -3.0, 1, 4, total=False), [])
-    assert "não superou a regra ingênua" in e["conclusao"]
+    assert "não superou a regra ingênua" in e["evidencia"]
 
 
 def test_e_dai_sem_backtest_diz_que_nao_foi_possivel_e_repassa_avisos():
@@ -278,7 +279,7 @@ def test_e_dai_cita_numeros_que_batem_com_o_retorno(mundo):
     r = mundo["r"]
     topo = max(r["segmentos"], key=lambda s: s["clv_medio"])
     usd = lambda x: "US$ " + f"{x:,.0f}".replace(",", ".")
-    assert usd(topo["clv_medio"]) in r["e_dai"]["conclusao"] and usd(r["total"]["clv_total_usd"]) in r["e_dai"]["conclusao"]
+    assert usd(topo["clv_medio"]) in r["e_dai"]["conclusao"] and usd(r["total"]["clv_total_usd"]) in r["e_dai"]["evidencia"]
     assert usd(r["total"]["receita_esperada_total_usd"]) in r["e_dai"]["impacto_estimado"]
 
 

@@ -55,10 +55,10 @@ def test_o_e_dai_e_o_primeiro_elemento_antes_de_qualquer_grafico(tela_real):
 def test_a_aba_mostra_o_mesmo_e_dai_e_os_mesmos_numeros_da_ferramenta(tela_real):
     banco.definir_banco(BANCO)
     r = calcular_clv()
-    textos = " ".join(m.value for m in tela_real.tabs[3].markdown)
-    for bloco in ("conclusao", "acao_recomendada", "impacto_estimado"):
+    textos = " ".join(m.value.replace("\\$", "$") for m in tela_real.tabs[3].markdown)
+    for bloco in ("conclusao", "evidencia", "acao_recomendada", "impacto_estimado"):
         assert r["e_dai"][bloco] in textos
-    metricas = {m.label: m.value for m in tela_real.tabs[3].metric}
+    metricas = {m.label: m.value.replace(chr(92) + "$", "$") for m in tela_real.tabs[3].metric}
     usd = lambda x: "US$ " + f"{x:,.0f}".replace(",", ".")
     assert metricas["Valor esperado (margem, 52 semanas)"] == usd(r["total"]["clv_total_usd"])
     assert metricas["Receita esperada (52 semanas)"] == usd(r["total"]["receita_esperada_total_usd"])

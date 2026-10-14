@@ -81,8 +81,12 @@ As descrições abaixo viram as docstrings. A IA escolhe a ferramenta pela descr
 
 ### Formato do bloco `e_dai` (ferramentas de análise)
 ```json
-{"conclusao": "...", "acao_recomendada": "...", "impacto_estimado": "...", "limitacoes": "..."}
+{"conclusao": "...", "evidencia": "...", "acao_recomendada": "...", "impacto_estimado": "...", "limitacoes": "...", "detalhes_tecnicos": ["...", "..."]}
 ```
+- `conclusao`: uma frase curta (até ~15 palavras), em linguagem de negócio, sem estatística. É o título do bloco no app e a primeira frase da resposta do chat.
+- `evidencia`: 1 ou 2 frases com os números de negócio que sustentam a conclusão (e o aviso, quando o modelo não supera a regra simples).
+- `acao_recomendada`, `impacto_estimado`, `limitacoes`: como antes.
+- `detalhes_tecnicos`: lista de frases com a estatística (AUC, p-valor, eta², IC, limiar, precisão/recall, robustez). O app mostra num expander fechado; nada da estatística some, só sai do título.
 
 ## 4. Avaliação
 

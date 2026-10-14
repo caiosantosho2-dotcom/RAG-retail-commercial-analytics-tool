@@ -79,7 +79,7 @@ def test_ferramenta_de_analise_pelo_agente_devolve_o_e_dai_ao_modelo(servidor):
     assert r.erro is None and r.ferramentas == ["testar_desconto_entre_segmentos"] and r.consultas == []
     retorno = next(m for m in llm.vistas[-1] if m.type == "tool")
     dado = json.loads(texto_do_conteudo(retorno.content))
-    assert {"conclusao", "acao_recomendada", "impacto_estimado", "limitacoes"} == set(dado["e_dai"]) and "não efeito causal" in dado["e_dai"]["limitacoes"]
+    assert {"conclusao", "evidencia", "acao_recomendada", "impacto_estimado", "limitacoes", "detalhes_tecnicos"} == set(dado["e_dai"]) and "não efeito causal" in dado["e_dai"]["limitacoes"]
 
 
 def test_argumento_invalido_volta_ao_modelo_como_erro_sem_derrubar_o_agente(servidor):

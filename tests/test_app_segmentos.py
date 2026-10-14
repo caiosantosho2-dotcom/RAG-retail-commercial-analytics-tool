@@ -62,15 +62,15 @@ def test_o_bloco_e_dai_tem_os_quatro_itens(tela_real):
     texto = " ".join(m.value for m in tela_real.tabs[2].markdown)
     for rotulo in ("Ação recomendada.", "Impacto estimado.", "Limitações."):
         assert rotulo in texto
-    assert any(m.value.startswith("### ") and "faturamento da janela" in m.value for m in tela_real.tabs[2].markdown)   # conclusão em destaque
+    assert any(m.value.startswith("### ") and "do faturamento" in m.value for m in tela_real.tabs[2].markdown)   # conclusão em destaque
 
 
 @precisa_do_banco
 def test_a_aba_mostra_os_mesmos_numeros_da_ferramenta_e_do_chat(tela_real):
     banco.definir_banco(BANCO)
     r = segmentar_clientes()
-    textos = " ".join(m.value for m in tela_real.tabs[2].markdown)
-    assert r["e_dai"]["conclusao"] in textos and r["e_dai"]["impacto_estimado"] in textos
+    textos = " ".join(m.value.replace("\\$", "$") for m in tela_real.tabs[2].markdown)
+    assert r["e_dai"]["conclusao"] in textos and r["e_dai"]["evidencia"] in textos and r["e_dai"]["impacto_estimado"] in textos
     metricas = {m.label: m.value for m in tela_real.tabs[2].metric}
     assert metricas["Segmentos (K)"] == str(r["k_usado"]) == "4"
     assert metricas["Households fora da análise"] == "79"

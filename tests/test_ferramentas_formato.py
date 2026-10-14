@@ -65,8 +65,11 @@ def test_saida_tem_os_campos_da_spec(retornos, nome):
 @pytest.mark.parametrize("nome", ANALISES)
 def test_e_dai_tem_os_quatro_blocos_em_texto_sem_placeholder(retornos, nome):
     e = retornos["ok"][nome]["e_dai"]
-    assert set(e) == {"conclusao", "acao_recomendada", "impacto_estimado", "limitacoes"}
-    assert all(isinstance(v, str) and len(v) > 40 and "{" not in v and "}" not in v and not re.search(r"(None|nan|NaN)", v) for v in e.values())
+    assert set(e) == {"conclusao", "evidencia", "acao_recomendada", "impacto_estimado", "limitacoes", "detalhes_tecnicos"}
+    assert isinstance(e["detalhes_tecnicos"], list) and e["detalhes_tecnicos"]
+    textos = [v for k, v in e.items() if k != "detalhes_tecnicos"] + e["detalhes_tecnicos"]
+    assert all(isinstance(v, str) and len(v) > 20 and "{" not in v and "}" not in v and not re.search(r"\b(None|nan|NaN)\b", v) for v in textos)
+    assert len(e["conclusao"].split()) <= 20 and e["conclusao"].endswith(".")
 
 
 @pytest.mark.parametrize("nome", list(SPEC))

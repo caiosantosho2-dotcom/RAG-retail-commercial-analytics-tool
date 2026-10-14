@@ -196,9 +196,16 @@ def montar_e_dai(segmentos: list[dict], k: int, silhueta: float, estab: dict, re
     em_pausa = next((s for s in segmentos if s["nome"] == NOME_PAUSA), None)
     ari = min(estab["ari_sementes_min"], estab["ari_subamostras_min"])
     conclusao = (f"{topo['nome']} são {_pct(topo['pct_households'])} dos households e fazem {_pct(topo['pct_faturamento'])} "
-                 f"do faturamento da janela; {k} segmentos, com estabilidade mínima de {_num(ari)} (ARI).")
+                 "do faturamento.")
+    evidencia = (f"Os {topo['nome']} ({_milhar(topo['households'])} households) geram {_usd(topo['valor_total_usd'])} em 26 semanas.")
+    if em_pausa:
+        evidencia += (f" Os {NOME_PAUSA} ({_milhar(em_pausa['households'])} households) fazem {_pct(em_pausa['pct_faturamento'], 1)} "
+                      "do faturamento.")
+    detalhes = [f"{k} segmentos pela regra combinada (silhueta {_num(silhueta)}); estabilidade mínima de {_num(ari)} (ARI, entre "
+                "sementes e subamostras)."]
     if not regra_cumprida:
-        conclusao += " Atenção: a regra de estabilidade não foi atendida, trate os segmentos como indicativos."
+        evidencia = "Atenção: a regra de estabilidade não foi atendida, trate os segmentos como indicativos. " + evidencia
+        detalhes.append("A regra de estabilidade (ARI mínimo) não foi atendida.")
     ordem = [s for s in sorted(segmentos, key=lambda s: -s["valor_medio_usd"]) if s["nome"] in ACAO][:3]
     acao = "; ".join(f"{s['nome']}: {ACAO[s['nome']]}" for s in ordem) + "."
     perda_5pct = topo["valor_total_usd"] * 0.05
@@ -215,7 +222,8 @@ def montar_e_dai(segmentos: list[dict], k: int, silhueta: float, estab: dict, re
         "graduais. O K vem da regra combinada (silhueta, estabilidade, tamanho)"
         + (f", não só da silhueta, que sozinha escolheria K={melhor_silhueta_k}" if melhor_silhueta_k != k else "")
         + ". Segmento descreve comportamento, não causa.")
-    return {"conclusao": conclusao, "acao_recomendada": acao, "impacto_estimado": impacto, "limitacoes": limitacoes}
+    return {"conclusao": conclusao, "evidencia": evidencia, "acao_recomendada": acao, "impacto_estimado": impacto,
+            "limitacoes": limitacoes, "detalhes_tecnicos": detalhes}
 
 
 # --------------------------------------------------------------------------- ajuste dos segmentos

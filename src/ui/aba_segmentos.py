@@ -7,7 +7,7 @@ from src.config import CFG
 from src.nucleo import banco
 from src.nucleo.rfm import coorte_retencao, segmentar_clientes
 from src.ui import cores, graficos
-from src.ui.componentes import bloco_e_dai, metricas, tabela_do_grafico
+from src.ui.componentes import bloco_e_dai, md, metricas, tabela_do_grafico
 
 
 def _pt(x: float, casas: int = 2) -> str:
@@ -21,7 +21,7 @@ def renderizar(caminho_banco) -> None:
             r = segmentar_clientes()
             coorte = coorte_retencao(banco.cursor()) if "erro" not in r else None
     if "erro" in r:
-        st.error(f"{r['erro']} {r.get('sugestao', '')}")
+        st.error(md(f"{r['erro']} {r.get('sugestao', '')}"))
         return
 
     bloco_e_dai(r["e_dai"])
@@ -41,28 +41,28 @@ def renderizar(caminho_banco) -> None:
     st.dataframe(perfil, hide_index=True, width="stretch")
     tabela_do_grafico(graficos.tabela_segmentos(r["segmentos"]))
 
-    st.markdown("#### Por que K = " + str(r["k_usado"]))
+    st.markdown(md("#### Por que K = " + str(r["k_usado"])))
     st.altair_chart(graficos.grafico_k(r["avaliacao_k"], r["k_usado"], CFG["analises"]["rfm"], modo), theme=None, width="stretch")
-    st.caption(r["metodo_escolha_k"])
+    st.caption(md(r["metodo_escolha_k"]))
     tabela_do_grafico(graficos.tabela_k(r["avaliacao_k"], r["k_usado"], CFG["analises"]["rfm"]).drop(columns=["estado"]),
                       "Ver a avaliação de cada K")
 
     st.markdown("#### Retenção por coorte de entrada")
     if coorte and coorte["coortes"]:
         st.altair_chart(graficos.grafico_coorte(coorte["coortes"], modo), theme=None, width="stretch")
-        st.caption(coorte["limitacao"])
+        st.caption(md(coorte["limitacao"]))
         tabela_do_grafico(graficos.tabela_coorte(coorte["coortes"]))
     else:
         st.info("Não há coortes com households suficientes para mostrar a retenção.")
 
     with st.expander("Escolhas estatísticas e exclusões"):
-        st.markdown(
+        st.markdown(md(
             "- **Variáveis:** recência em dias; frequência e valor em `log1p` (o valor tem cauda longa); tudo padronizado.\n"
             f"- **K-Means** com semente fixa ({CFG['semente']}) e {CFG['analises']['rfm']['n_init']} inicializações.\n"
             f"- **Estabilidade:** {est['sementes']} sementes e {est['subamostras']} subamostras de "
             f"{int(est['fracao_subamostra'] * 100)}% (índice de Rand ajustado, ARI).\n"
             "- **Nomes:** derivados do perfil de cada segmento (recência alta = em pausa; os demais, por valor médio), "
-            "nunca de uma lista fixa por ordem do cluster.")
+            "nunca de uma lista fixa por ordem do cluster."))
         st.markdown("**Households fora da análise**")
         st.dataframe(pd.DataFrame(r["excluidos"]).rename(columns={"motivo": "Motivo", "households": "Households"}),
                      hide_index=True, width="stretch")

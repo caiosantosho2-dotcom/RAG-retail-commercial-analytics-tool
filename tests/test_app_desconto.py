@@ -53,8 +53,8 @@ def test_o_e_dai_e_o_primeiro_elemento_antes_de_qualquer_grafico(tela_real):
 def test_a_aba_mostra_o_mesmo_e_dai_e_os_mesmos_numeros_da_ferramenta(tela_real):
     banco.definir_banco(BANCO)
     r = testar_desconto_entre_segmentos()
-    textos = " ".join(m.value for m in tela_real.tabs[IDX].markdown)
-    for bloco in ("conclusao", "acao_recomendada", "impacto_estimado", "limitacoes"):
+    textos = " ".join(m.value.replace("\\$", "$") for m in tela_real.tabs[IDX].markdown)
+    for bloco in ("conclusao", "evidencia", "acao_recomendada", "impacto_estimado", "limitacoes"):
         assert r["e_dai"][bloco] in textos
     metricas = {m.label: m.value for m in tela_real.tabs[IDX].metric}
     assert metricas["Households comparados"] == "2.421" and metricas["Kruskal-Wallis (p-valor)"] == "0,009"

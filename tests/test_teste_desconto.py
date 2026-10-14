@@ -173,7 +173,7 @@ def test_post_hoc_fica_de_fora_quando_o_geral_nao_e_significativo(tmp_path):
     if r["kruskal_wallis"]["significativo_5pct"]:
         pytest.skip("o sorteio calhou significativo; a regra já é testada no outro cenário")
     assert r["post_hoc"] is None and not r["post_hoc_executado"] and "não foi significativo" in r["post_hoc_motivo"]
-    assert r["veredito"] == "sem_diferenca_detectavel" and "Não há diferença detectável" in r["e_dai"]["conclusao"]
+    assert r["veredito"] == "sem_diferenca_detectavel" and "nenhuma diferença detectável" in " ".join(r["e_dai"]["detalhes_tecnicos"])
 
 
 def test_reconcilia_com_os_clientes_sinteticos(com_efeito):
@@ -191,18 +191,18 @@ def test_sensibilidade_usa_so_quem_tem_cinco_compras_ou_mais(com_efeito):
     assert s["minimo_compras"] == 5 and s["households"] == int((c["frequencia"] >= 5).sum())
     assert s["households"] == sum(g["households"] for g in s["grupos"]) and s["veredito"] in (
         "sem_diferenca_detectavel", "diferenca_desprezivel", "diferenca_relevante")
-    assert "Só com households de 5 ou mais compras" in r["e_dai"]["conclusao"]
+    assert "Só com households de 5 ou mais compras" in " ".join(r["e_dai"]["detalhes_tecnicos"])
 
 
 def test_formato_da_spec_serializa_e_a_limitacao_sempre_diz_que_nao_e_causal(com_efeito, sem_efeito):
     for r, _ in (com_efeito, sem_efeito):
         assert {"normalidade_por_grupo", "kruskal_wallis", "post_hoc", "ic_diferencas", "e_dai", "versao_base", "janela"} <= r.keys()
         assert {"estatistica_H", "p_valor", "eta_quadrado_aprox"} <= r["kruskal_wallis"].keys()
-        assert set(r["e_dai"]) == {"conclusao", "acao_recomendada", "impacto_estimado", "limitacoes"}
+        assert set(r["e_dai"]) == {"conclusao", "evidencia", "acao_recomendada", "impacto_estimado", "limitacoes", "detalhes_tecnicos"}
         assert "não efeito causal" in r["e_dai"]["limitacoes"]
         texto = json.dumps(r, ensure_ascii=False)
         assert "household_key" not in texto and len(texto.encode()) < 16_000
-        assert not any("{" in v or "}" in v for v in r["e_dai"].values())
+        assert not any("{" in str(v) or "}" in str(v) for v in r["e_dai"].values())
         assert r["versao_base"] == "sintetica1" and r["janela"]["atual"]["semanas"] == [76, 101]
         assert len(r["normalidade_por_grupo"]) == 4 and len(r["ic_diferencas"]) == 6
 
@@ -266,7 +266,7 @@ def test_real_veredito_e_sensibilidade_contam_a_mesma_historia(real):
     assert real["kruskal_wallis"]["significativo_5pct"] and real["kruskal_wallis"]["eta_quadrado_aprox"] < CFG_TD["eta2_relevante"]
     assert all(not i["exclui_zero"] for i in real["ic_diferencas"])
     assert real["post_hoc_executado"] and sum(p["significativo_5pct"] for p in real["post_hoc"]) == 1     # só Esporádicos x Regulares
-    assert "praticamente igual" in real["e_dai"]["conclusao"] and "a significância desaparece" in real["e_dai"]["conclusao"]
+    assert "praticamente o mesmo desconto" in real["e_dai"]["conclusao"] and "a significância desaparece" in " ".join(real["e_dai"]["detalhes_tecnicos"])
 
 
 @precisa_do_banco

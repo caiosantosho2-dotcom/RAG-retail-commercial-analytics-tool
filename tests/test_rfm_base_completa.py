@@ -83,7 +83,7 @@ def test_e_dai_cita_os_numeros_do_resultado(r):
     s, e = por_nome(r), r["e_dai"]
     assert f"{round(s['Fiéis']['pct_households'])}%" in e["conclusao"] and f"{round(s['Fiéis']['pct_faturamento'])}%" in e["conclusao"]
     assert "79 households" in e["limitacoes"] and "US$" in e["impacto_estimado"]
-    assert all(e[k].strip() for k in ("conclusao", "acao_recomendada", "impacto_estimado", "limitacoes"))
+    assert all(e[k].strip() for k in ("conclusao", "evidencia", "acao_recomendada", "impacto_estimado", "limitacoes")) and e["detalhes_tecnicos"]
 
 
 def test_coorte_tem_cinco_coortes_uteis_e_retencao_estavel():

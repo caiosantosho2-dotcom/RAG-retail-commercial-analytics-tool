@@ -133,16 +133,17 @@ def segmentos_exemplo():
 
 def test_e_dai_tem_os_quatro_blocos_com_numeros_e_sem_marcadores_soltos():
     e = montar_e_dai(segmentos_exemplo(), 4, 0.374, {"ari_sementes_min": 0.97, "ari_subamostras_min": 0.95}, True, 2, 79, 2500)
-    assert set(e) == {"conclusao", "acao_recomendada", "impacto_estimado", "limitacoes"}
-    assert "Fiéis são 35% dos households e fazem 71%" in e["conclusao"] and "0,95" in e["conclusao"]
+    assert set(e) == {"conclusao", "evidencia", "acao_recomendada", "impacto_estimado", "limitacoes", "detalhes_tecnicos"}
+    assert e["conclusao"] == "Fiéis são 35% dos households e fazem 71% do faturamento."
+    assert "0,95" in " ".join(e["detalhes_tecnicos"]) and "US$" in e["evidencia"]
     assert "Fiéis" in e["acao_recomendada"] and "Em pausa" in e["impacto_estimado"] and "US$" in e["impacto_estimado"]
     assert "2.500 households" in e["limitacoes"] and "79 households" in e["limitacoes"] and "K=2" in e["limitacoes"]
-    assert not any("{" in v or "}" in v for v in e.values())
+    assert not any("{" in str(v) or "}" in str(v) for v in e.values())
 
 
 def test_e_dai_avisa_quando_a_regra_de_k_nao_foi_cumprida():
     e = montar_e_dai(segmentos_exemplo(), 4, 0.30, {"ari_sementes_min": 0.5, "ari_subamostras_min": 0.5}, False, 4, 0, 2500)
-    assert "regra de estabilidade não foi atendida" in e["conclusao"]
+    assert "regra de estabilidade não foi atendida" in e["evidencia"]
 
 
 # --- pipeline sobre clientes com segmentos plantados ------------------------------------------------------

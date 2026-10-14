@@ -77,9 +77,10 @@ def bloco_qualidade(rel: dict) -> str:
 
 
 def _citacao(e: dict) -> str:
-    return ("> **E daí?**\n>\n"
-            f"> **Conclusão.** {e['conclusao']}\n>\n> **Ação recomendada.** {e['acao_recomendada']}\n>\n"
-            f"> **Impacto estimado.** {e['impacto_estimado']}\n>\n> **Limitações.** {e['limitacoes']}")
+    partes = ["> **E daí?**", ">", f"> **Conclusão.** {e['conclusao']}", ">", f"> {e['evidencia']}", ">",
+              f"> **Ação recomendada.** {e['acao_recomendada']}", ">", f"> **Impacto estimado.** {e['impacto_estimado']}", ">",
+              f"> **Limitações.** {e['limitacoes']}", ">", "> **Detalhes técnicos.** " + " ".join(e["detalhes_tecnicos"])]
+    return chr(10).join(partes)
 
 
 def _resumo_de_avaliacao(arquivo: Path) -> str | None:

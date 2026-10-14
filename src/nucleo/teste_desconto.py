@@ -135,25 +135,33 @@ def montar_e_dai(r: dict) -> dict:
                 "ruído de medir desconto em poucas compras.")
     else:
         sens = f"{base_sens} o veredito muda ({vs.replace('_', ' ')}): p {_p(ks['p_valor'])}, eta² = {eta_s}; o resultado depende de quem entra no teste."
+    medianas = (f"As medianas vão de {_pt(med_min['mediana_pct'])}% ({med_min['segmento']}) a {_pt(med_max['mediana_pct'])}% "
+                f"({med_max['segmento']}), {_pt(amplitude)} ponto percentual de diferença.")
+    kw_txt = f"Kruskal-Wallis: p {_p(kw['p_valor'])}, eta² = {_pt(kw['eta_quadrado_aprox'], 4)}"
     if v == "sem_diferenca_detectavel":
-        conclusao = (f"Não há diferença detectável de desconto entre os segmentos (Kruskal-Wallis p {_p(kw['p_valor'])}, eta² = "
-                     f"{_pt(kw['eta_quadrado_aprox'], 4)}): as medianas vão de {_pt(med_min['mediana_pct'])}% a {_pt(med_max['mediana_pct'])}%. {sens}")
+        conclusao = "Todos os segmentos recebem praticamente o mesmo desconto."
+        evidencia = f"{medianas} Os dados não mostram diferença entre os grupos."
+        detalhes = [f"{kw_txt}: nenhuma diferença detectável entre os segmentos.", sens]
         acao = "Tratar o desconto como política geral: não há base nos dados para diferenciar a taxa por segmento."
     elif v == "diferenca_desprezivel":
-        conclusao = (f"Os segmentos recebem desconto praticamente igual: as medianas vão de {_pt(med_min['mediana_pct'])}% ({med_min['segmento']}) a "
-                     f"{_pt(med_max['mediana_pct'])}% ({med_max['segmento']}), {_pt(amplitude)} ponto percentual de amplitude. O teste geral acusa "
-                     f"diferença (p {_p(kw['p_valor'])}), mas o efeito é desprezível: eta² = {_pt(kw['eta_quadrado_aprox'], 4)}, ou "
-                     f"{_pt(100 * kw['eta_quadrado_aprox'])}% da variação, e todos os intervalos das diferenças de mediana ficam abaixo de "
-                     f"{_pt(cfg['diferenca_relevante_pp'], 0)} ponto ou incluem zero. {sens}")
+        conclusao = "Todos os segmentos recebem praticamente o mesmo desconto."
+        evidencia = f"{medianas} A diferença é pequena demais para justificar taxa por segmento."
+        detalhes = [f"{kw_txt} ({_pt(100 * kw['eta_quadrado_aprox'])}% da variação): o teste geral acusa diferença, mas o efeito é desprezível.",
+                    f"Todos os intervalos das diferenças de mediana ficam abaixo de {_pt(cfg['diferenca_relevante_pp'], 0)} ponto ou incluem zero.",
+                    sens]
         acao = ("Tratar o desconto como política geral, não por segmento: a diferença estatística existe só no papel e não justifica "
                 "ajustar taxa para nenhum grupo. Para mexer na margem, olhar o desconto como um todo ou por categoria (não testado aqui).")
     else:
         pares = sorted((i for i in r["ic_diferencas"] if i["exclui_zero"] and abs(i["diferenca_mediana_pp"]) >= cfg["diferenca_relevante_pp"]),
                        key=lambda i: -abs(i["diferenca_mediana_pp"]))
-        destaque = (f" A maior: {pares[0]['grupo_1']} contra {pares[0]['grupo_2']}, {_pt(pares[0]['diferenca_mediana_pp'])} pp de diferença de "
-                    f"medianas (IC de {_pt(100 * cfg['nivel_ic'], 0)}%: {_pt(pares[0]['ic_inferior'])} a {_pt(pares[0]['ic_superior'])})." if pares else "")
-        conclusao = (f"Os segmentos recebem desconto diferente de forma relevante (p {_p(kw['p_valor'])}, eta² = {_pt(kw['eta_quadrado_aprox'], 4)}); "
-                     f"as medianas vão de {_pt(med_min['mediana_pct'])}% a {_pt(med_max['mediana_pct'])}%.{destaque} {sens}")
+        conclusao = f"Os segmentos recebem desconto diferente de forma relevante: {med_max['segmento']} têm a maior taxa."
+        evidencia = medianas
+        detalhes = [f"{kw_txt}."]
+        if pares:
+            detalhes.append(f"Maior diferença: {pares[0]['grupo_1']} contra {pares[0]['grupo_2']}, {_pt(pares[0]['diferenca_mediana_pp'])} pp "
+                            f"de diferença de medianas (IC de {_pt(100 * cfg['nivel_ic'], 0)}%: {_pt(pares[0]['ic_inferior'])} a "
+                            f"{_pt(pares[0]['ic_superior'])}).")
+        detalhes.append(sens)
         acao = (f"Rever a regra de desconto dos segmentos com taxa mais alta ({med_max['segmento']}) e checar se a diferença é intencional; "
                 "o teste mostra a diferença, não o motivo.")
     impacto = (f"Desconto total da janela: {_usd(imp['desconto_total_usd'])} ({_pt(imp['taxa_geral_pct'])}% do valor bruto). Se todos os segmentos "
@@ -165,7 +173,8 @@ def montar_e_dai(r: dict) -> dict:
                   f"{_milhar(next((g['households'] for g in r['sensibilidade']['grupos'] if g['segmento'] == 'Em pausa'), 0))} households). "
                   "Uma só janela de 26 semanas. Desconto de loja (cartão) e de cupom estão somados. Os p-valores dos pares são ajustados por Holm; "
                   "os intervalos de confiança das diferenças não. Household não é pessoa. Households sem compra na janela ficam fora.")
-    return {"conclusao": conclusao, "acao_recomendada": acao, "impacto_estimado": impacto, "limitacoes": limitacoes}
+    return {"conclusao": conclusao, "evidencia": evidencia, "acao_recomendada": acao, "impacto_estimado": impacto,
+            "limitacoes": limitacoes, "detalhes_tecnicos": detalhes}
 
 
 def _analisar(d: pd.DataFrame, ordem: list[str], cfg: dict, semente: int) -> dict:

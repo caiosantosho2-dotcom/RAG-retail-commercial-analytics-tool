@@ -16,6 +16,7 @@ from src.nucleo.clv import calcular_clv
 from src.nucleo.rfm import segmentar_clientes
 from src.nucleo.teste_desconto import testar_desconto_entre_segmentos
 from src.ui import cores, graficos
+from src.ui.componentes import md
 
 
 FRASE_DESCONTO = {
@@ -36,9 +37,7 @@ def _pt(x: float, casas: int = 1) -> str:
     return f"{x:.{casas}f}".replace(".", ",")
 
 
-def _md(texto: str) -> str:
-    """Escapa o cifrão: dois "US$" na mesma linha viram fórmula no markdown do Streamlit."""
-    return texto.replace("$", "\\$")
+_md = md   # escapa o cifrão: dois "US$" no mesmo texto viram fórmula no markdown do Streamlit
 
 
 def _titulo_em_linhas(grafico, largura: int = 44):
@@ -88,7 +87,7 @@ def _bloco(coluna, titulo: str, grafico, e_dai: dict) -> None:
 def _erro(coluna, titulo: str, r: dict) -> None:
     with coluna:
         st.markdown(f"**{titulo}**")
-        st.info(f"{r['erro']} {r.get('sugestao', '')}")
+        st.info(md(f"{r['erro']} {r.get('sugestao', '')}"))
 
 
 def renderizar(caminho_banco) -> None:

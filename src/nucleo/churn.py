@@ -208,14 +208,21 @@ def montar_e_dai(r: dict) -> dict:
     pop = sum(s["households"] for s in segs)
     m, b = r["modelo"], r["baseline"]
     ganha = r["diferenca_auc_ic"][0] > 0
-    conclusao = (f"Cerca de {round(total_esperado)} dos {_milhar(pop)} households ativos devem passar {h} semanas sem comprar; "
-                 f"{topo['nome']} concentram {_pct(100 * topo['pausas_esperadas'] / total_esperado)}% dessas pausas (risco médio de "
-                 f"{_pct(topo['risco_medio_pct'], 1)}%, contra {_pct(menor['risco_medio_pct'], 1)}% dos {menor['nome']}).")
+    pct_topo = 100 * topo["pausas_esperadas"] / total_esperado
+    conclusao = (f"Cerca de {round(total_esperado)} clientes ativos devem passar {h} semanas sem comprar; "
+                 f"{_pct(pct_topo)}% são {topo['nome']}.")
+    evidencia = (f"Dos {_milhar(pop)} households ativos avaliados, o risco médio é de {_pct(topo['risco_medio_pct'], 1)}% nos "
+                 f"{topo['nome']}, contra {_pct(menor['risco_medio_pct'], 1)}% nos {menor['nome']}.")
+    lo, hi = r["diferenca_auc_ic"]
+    detalhes = [f"AUC do modelo {_pct(m['auc'], 2)} contra {_pct(b['auc'], 2)} da regra simples de recência; diferença com IC de 95% "
+                f"de {_pct(lo, 3)} a {_pct(hi, 3)} (por household, no teste).",
+                f"Limiar de alerta {_pct(r['limiar'], 2)}: precisão de {_pct(100 * m['precisao'])}% e recall de {_pct(100 * m['recall'])}% "
+                "no teste."]
     if ganha:
-        conclusao += f" O modelo ordena melhor que a regra de recência (AUC {_pct(m['auc'], 2)} contra {_pct(b['auc'], 2)})."
+        detalhes.insert(0, "O modelo ordena melhor que a regra de recência.")
     else:
-        conclusao += (f" Atenção: o modelo não superou a regra simples de recência (AUC {_pct(m['auc'], 2)} contra {_pct(b['auc'], 2)}, "
-                      "diferença dentro da margem de erro): use a regra, que é mais simples.")
+        evidencia += (" Atenção: o modelo não superou a regra simples de recência (diferença dentro da margem de erro): "
+                      "use a regra, que é mais simples.")
     onde = (f"as pausas se concentram nos {topo['nome']}, mas o dinheiro em risco está nos {maior_valor['nome']} "
             f"({_pct(100 * maior_valor['valor_em_risco_usd'] / total_valor)}% do valor em risco)"
             if maior_valor["nome"] != topo["nome"] else f"{topo['nome']} concentram as pausas e o valor em risco")
@@ -233,7 +240,8 @@ def montar_e_dai(r: dict) -> dict:
                   f"Precisão modesta: de cada 100 alertas, {round(100 * m['precisao'])} se confirmam. O modelo usa só comportamento de compra e mostra "
                   "associação, não causa. O treino repete households em várias fotos (o intervalo é por household no teste). "
                   "Os segmentos mudam com a janela.")
-    return {"conclusao": conclusao, "acao_recomendada": acao, "impacto_estimado": impacto, "limitacoes": limitacoes}
+    return {"conclusao": conclusao, "evidencia": evidencia, "acao_recomendada": acao, "impacto_estimado": impacto,
+            "limitacoes": limitacoes, "detalhes_tecnicos": detalhes}
 
 
 # --------------------------------------------------------------------------- análise

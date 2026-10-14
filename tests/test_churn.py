@@ -186,12 +186,13 @@ def resultado_exemplo(ic_dif=(0.087, 0.147), mesmo_topo=False):
 
 def test_e_dai_traz_os_quatro_blocos_com_numeros_em_portugues():
     e = montar_e_dai(resultado_exemplo())
-    assert set(e) == {"conclusao", "acao_recomendada", "impacto_estimado", "limitacoes"}
-    assert "2.203 households" in e["conclusao"] and "22,9%" in e["conclusao"] and "AUC 0,85 contra 0,74" in e["conclusao"]
+    assert set(e) == {"conclusao", "evidencia", "acao_recomendada", "impacto_estimado", "limitacoes", "detalhes_tecnicos"}
+    assert "2.203 households" in e["evidencia"] and "22,9%" in e["evidencia"] and "AUC" not in e["conclusao"]
+    assert "AUC do modelo 0,85 contra 0,74" in " ".join(e["detalhes_tecnicos"])
     assert "243 households em alerta hoje" in e["acao_recomendada"] and "limiar 0,17" in e["acao_recomendada"]
     assert "US$ 12.706" in e["impacto_estimado"] and "80% de quem pausa" in e["impacto_estimado"]
     assert "Pausa não é saída" in e["limitacoes"] and "297 households já estão em pausa" in e["limitacoes"] and "Precisão modesta" in e["limitacoes"]
-    junto = " ".join(e.values())
+    junto = " ".join(str(v) for v in e.values())
     assert not re.search(r"\d\.\d", junto.replace("2.203", "").replace("12.706", "")), "decimais devem usar vírgula"
     assert "{" not in junto
 
@@ -205,8 +206,8 @@ def test_e_dai_separa_onde_estao_as_pausas_de_onde_esta_o_dinheiro():
 
 def test_e_dai_admite_quando_o_modelo_nao_supera_a_regra():
     e = montar_e_dai(resultado_exemplo(ic_dif=(-0.02, 0.04)))
-    assert "não superou a regra simples" in e["conclusao"] and "use a regra" in e["conclusao"]
-    assert "ordena melhor" not in e["conclusao"]
+    assert "não superou a regra simples" in e["evidencia"] and "use a regra" in e["evidencia"]
+    assert "ordena melhor" not in " ".join(e["detalhes_tecnicos"])
 
 
 # --- pipeline numa base semanal sintética ------------------------------------------------------------------------
@@ -251,7 +252,7 @@ def test_o_modelo_ganha_da_regra_simples_e_o_intervalo_diz_isso(mundo):
     r = mundo["r"]
     assert r["auc_modelo"] > r["auc_baseline"] and r["diferenca_auc_ic"][0] > 0
     assert r["diferenca_auc_ic"][0] < r["diferenca_auc"] < r["diferenca_auc_ic"][1]
-    assert "ordena melhor" in r["e_dai"]["conclusao"]
+    assert "ordena melhor" in " ".join(r["e_dai"]["detalhes_tecnicos"])
 
 
 def test_limiar_k_e_coeficientes_nao_dependem_dos_rotulos_de_teste(mundo, monkeypatch):
@@ -443,7 +444,7 @@ def test_real_fatores_tem_o_sinal_de_negocio_nas_cinco_variaveis(real):
 @precisa_do_banco
 def test_real_e_dai_cita_pausa_retorno_e_valor(real):
     e = real["e_dai"]
-    assert "Esporádicos concentram" in e["conclusao"] and "ordena melhor" in e["conclusao"]
+    assert "são Esporádicos" in e["conclusao"] and "ordena melhor" in " ".join(e["detalhes_tecnicos"])
     assert "Regulares" in e["acao_recomendada"] and "dinheiro em risco" in e["acao_recomendada"]
     assert "volta em até 18 semanas" in e["impacto_estimado"] and "Pausa não é saída" in e["limitacoes"]
     assert 5_000 < real["valor_em_risco_usd"] < 30_000 and real["valor_em_risco_pct_do_periodo"] < 5

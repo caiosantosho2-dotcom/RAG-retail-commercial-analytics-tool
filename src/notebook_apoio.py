@@ -56,12 +56,14 @@ def md(texto: str) -> None:
 
 def e_dai(bloco: dict) -> None:
     """O bloco fixo de fechamento de cada seção (guia, seção 7.5), com o texto devolvido pela própria ferramenta."""
-    display(Markdown(
-        "> **E daí?**\n>\n"
-        f"> **Conclusão.** {bloco['conclusao']}\n>\n"
-        f"> **Ação recomendada.** {bloco['acao_recomendada']}\n>\n"
-        f"> **Impacto estimado.** {bloco['impacto_estimado']}\n>\n"
-        f"> **Limitações.** {bloco['limitacoes']}"))
+    linhas = ["> **E daí?**", ">", f"> **Conclusão.** {bloco['conclusao']}"]
+    if bloco.get("evidencia"):
+        linhas += [">", f"> {bloco['evidencia']}"]
+    linhas += [">", f"> **Ação recomendada.** {bloco['acao_recomendada']}", ">",
+               f"> **Impacto estimado.** {bloco['impacto_estimado']}", ">", f"> **Limitações.** {bloco['limitacoes']}"]
+    if bloco.get("detalhes_tecnicos"):
+        linhas += [">", "> **Detalhes técnicos.** " + " ".join(bloco["detalhes_tecnicos"])]
+    display(Markdown(chr(10).join(linhas)))
 
 
 def grafico(chart, largura: int = LARGURA, altura: int | None = None) -> None:

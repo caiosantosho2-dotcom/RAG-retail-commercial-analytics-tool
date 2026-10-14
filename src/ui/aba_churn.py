@@ -6,7 +6,7 @@ import streamlit as st
 from src.nucleo import banco
 from src.nucleo.churn import prever_churn
 from src.ui import cores, graficos
-from src.ui.componentes import bloco_e_dai, metricas, tabela_do_grafico
+from src.ui.componentes import bloco_e_dai, md, metricas, tabela_do_grafico
 
 
 def _milhar(n: float) -> str:
@@ -23,7 +23,7 @@ def renderizar(caminho_banco) -> None:
         with banco.usando(caminho_banco):
             r = prever_churn()
     if "erro" in r:
-        st.error(f"{r['erro']} {r.get('sugestao', '')}")
+        st.error(md(f"{r['erro']} {r.get('sugestao', '')}"))
         return
 
     h = r["horizonte_semanas"]
@@ -41,8 +41,8 @@ def renderizar(caminho_banco) -> None:
                                         "pausas_esperadas": "Pausas esperadas", "pct_das_pausas": "% das pausas", "alertas": "Em alerta",
                                         "valor_em_risco_usd": "Faturamento em risco (US$)", "pct_do_valor_em_risco": "% do valor em risco"}),
                  hide_index=True, width="stretch")
-    st.caption(f"{_milhar(r['ja_em_pausa']['households'])} households já estão sem comprar há {h} semanas ou mais: eles já estão em pausa "
-               "e ficam fora da previsão. Faturamento em risco = risco x gasto semanal médio x " + str(h) + " semanas.")
+    st.caption(md(f"{_milhar(r['ja_em_pausa']['households'])} households já estão sem comprar há {h} semanas ou mais: eles já estão em pausa "
+               "e ficam fora da previsão. Faturamento em risco = risco x gasto semanal médio x " + str(h) + " semanas."))
 
     st.markdown("#### Quantos alertar: precisão e recall")
     st.altair_chart(graficos.grafico_limiar(r["curva_limiar"], modo), theme=None, width="stretch")
@@ -57,7 +57,7 @@ def renderizar(caminho_banco) -> None:
                                "Regra simples": [_pt(b["auc"], 3), _pt(b["auc_pr"], 3), _pt(b["precisao"]), _pt(b["recall"]), _pt(b["f1"]), _milhar(b["alertas"])]})
     st.dataframe(comparacao, hide_index=True, width="stretch")
     lo, hi = r["diferenca_auc_ic"]
-    st.caption(f"{r['baseline_descricao']}. Diferença de AUC: {_pt(r['diferenca_auc'], 3)} (IC de 95%: {_pt(lo, 3)} a {_pt(hi, 3)}, por household).")
+    st.caption(md(f"{r['baseline_descricao']}. Diferença de AUC: {_pt(r['diferenca_auc'], 3)} (IC de 95%: {_pt(lo, 3)} a {_pt(hi, 3)}, por household)."))
 
     st.markdown("#### As probabilidades são confiáveis?")
     st.altair_chart(graficos.grafico_calibracao(r["calibracao"], modo), theme=None, width="stretch")
@@ -70,11 +70,11 @@ def renderizar(caminho_banco) -> None:
 
     with st.expander("Definição, validação e limitações"):
         ret = r["retorno_apos_pausa"]
-        st.markdown(f"- **Definição:** {r['definicao_churn']}\n"
+        st.markdown(md(f"- **Definição:** {r['definicao_churn']}\n"
                     f"- **Treino:** {r['periodo_treino']}.\n- **Validação:** {r['periodo_validacao']}.\n- **Teste:** {r['periodo_teste']}.\n"
                     f"- **Linhas:** {_milhar(r['linhas']['treino'])} no treino e {_milhar(r['linhas']['teste'])} no teste (o mesmo household entra em várias fotos).\n"
                     f"- **Retorno depois da pausa:** {_pt(ret['taxa_pct'], 0)}% voltam a comprar em até {ret['janela_semanas']} semanas "
-                    f"({_pt(ret['minimo_por_foto_pct'], 0)}% a {_pt(ret['maximo_por_foto_pct'], 0)}% conforme a foto; {_milhar(ret['pausas_observadas'])} pausas observadas).")
+                    f"({_pt(ret['minimo_por_foto_pct'], 0)}% a {_pt(ret['maximo_por_foto_pct'], 0)}% conforme a foto; {_milhar(ret['pausas_observadas'])} pausas observadas)."))
         cm = r["matriz_confusao"]
         st.markdown("**Matriz de confusão no teste**")
         st.dataframe(pd.DataFrame([{"Previsão": nome, "Verdadeiros negativos": c["tn"], "Falsos positivos": c["fp"], "Falsos negativos": c["fn"],

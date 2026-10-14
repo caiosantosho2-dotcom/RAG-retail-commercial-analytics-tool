@@ -1,4 +1,4 @@
-"""App Streamlit (AppTest, em processo): chat como primeira aba, tokens na sidebar, SQL num expander,
+"""App Streamlit (AppTest, em processo): Resumo como primeira aba e chat como segunda, tokens na sidebar, SQL num expander,
 carga com mensagens claras. O modelo é roteirizado e a carga é substituída por uma base já construída."""
 
 import re

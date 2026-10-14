@@ -6,7 +6,7 @@ import streamlit as st
 from src.nucleo import banco
 from src.nucleo.clv import calcular_clv
 from src.ui import cores, graficos
-from src.ui.componentes import bloco_e_dai, metricas, tabela_do_grafico
+from src.ui.componentes import bloco_e_dai, md, metricas, tabela_do_grafico
 
 
 def _usd(x: float) -> str:
@@ -19,7 +19,7 @@ def renderizar(caminho_banco) -> None:
         with banco.usando(caminho_banco):
             r = calcular_clv()
     if "erro" in r:
-        st.error(f"{r['erro']} {r.get('sugestao', '')}")
+        st.error(md(f"{r['erro']} {r.get('sugestao', '')}"))
         return
 
     bloco_e_dai(r["e_dai"])
@@ -45,24 +45,24 @@ def renderizar(caminho_banco) -> None:
     st.markdown("#### O método acerta? Teste em 26 semanas")
     if bt:
         st.altair_chart(graficos.grafico_backtest(bt, modo), theme=None, width="stretch")
-        st.caption(f"Calibração: {bt['calibracao']}. Teste: {bt['teste']}. Por household, o erro absoluto médio do método foi "
+        st.caption(md(f"Calibração: {bt['calibracao']}. Teste: {bt['teste']}. Por household, o erro absoluto médio do método foi "
                    f"{_usd(bt['mae_household_metodo_usd'])} contra {_usd(bt['mae_household_ingenuo_usd'])} da regra ingênua: o valor serve "
-                   "como média de grupo, não como previsão individual.")
+                   "como média de grupo, não como previsão individual."))
         tabela_do_grafico(graficos.tabela_backtest(bt))
     else:
         st.info("Não há semanas observadas suficientes para o backtest.")
 
     with st.expander("Premissas e método"):
-        st.markdown(f"- **Método:** {prem['metodo']}.\n"
+        st.markdown(md(f"- **Método:** {prem['metodo']}.\n"
                     f"- **Janela atual:** {prem['janela_atual']}; **calibração (um ano antes):** {prem['janela_calibracao']}; "
                     f"**semanas futuras observadas:** {prem['semanas_futuras_observadas']}.\n"
                     f"- **Margem:** {prem['margem'] * 100:.0f}% é premissa (o dataset não tem custo); o CLV escala linearmente com ela.\n"
                     f"- **{prem['grupo_sem_compra']}.**\n"
                     f"- **Desconto financeiro:** {prem['desconto_financeiro']}.\n"
                     f"- **Bootstrap:** {prem['bootstrap']['reamostras']} reamostras, nível {prem['bootstrap']['nivel'] * 100:.0f}%, semente "
-                    f"{prem['bootstrap']['semente']}.")
+                    f"{prem['bootstrap']['semente']}."))
         for aviso in r["avisos"]:
-            st.warning(aviso)
+            st.warning(md(aviso))
         st.markdown("**Gasto usado na calibração**")
         st.dataframe(pd.DataFrame([{"Grupo": s["nome"], "Households": s["calibracao"]["households"],
                                     "Gasto passado (US$)": s["calibracao"]["gasto_passado_usd"],

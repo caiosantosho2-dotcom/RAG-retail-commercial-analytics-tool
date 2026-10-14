@@ -41,7 +41,7 @@ Uma ferramenta para a área comercial de varejo: o usuário arrasta a planilha q
 
 ## O que é inegociável
 
-1. **O chat é a primeira aba e o centro do produto.** Linguagem de negócio, glossário RAG injetado no prompt, query SQL visível num expander, contador de tokens na sidebar.
+1. **O Resumo é a primeira aba; o chat é a segunda e o centro do produto.** Linguagem de negócio, glossário RAG injetado no prompt, query SQL visível num expander, contador de tokens na sidebar.
 2. **Carga por arquivo (upload) e por pasta `data/`**, com upload tendo prioridade. Isso é proposta de produto, não limitação (seção 1 do guia).
 3. **Cada métrica é definida uma única vez** (views no DuckDB), e o chat, as abas e o notebook usam essas mesmas views. Nunca dois números diferentes para a mesma pergunta.
 4. **Comparação com o ano anterior**: janela das últimas 26 semanas contra as mesmas semanas do ano anterior, alinhadas por semana e comparando as mesmas lojas.

@@ -17,6 +17,7 @@ from src.config import CFG  # noqa: E402
 from src.etl import ErroCarga  # noqa: E402
 from src.token_counter import LIMITES_REFERENCIA_TPM, ContadorTokens  # noqa: E402
 from src.ui import aba_churn, aba_clv, aba_desconto, aba_resumo, aba_segmentos  # noqa: E402
+from src.ui.componentes import md  # noqa: E402
 
 EXEMPLOS = [
     "Qual loja teve o maior ticket médio nas últimas 4 semanas?",
@@ -154,7 +155,7 @@ def _mostrar_consultas(consultas):
 def _mensagens():
     for m in st.session_state.mensagens:
         with st.chat_message(m["papel"]):
-            st.markdown(m["texto"])
+            st.markdown(md(m["texto"]))
             if m["papel"] == "assistant":
                 _mostrar_consultas(m.get("consultas"))
 
