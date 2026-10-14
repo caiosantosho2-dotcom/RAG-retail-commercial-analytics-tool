@@ -23,7 +23,7 @@ escolha de produto, não limitação.
 - Funções Python do núcleo (consulta, segmentação, CLV, churn, teste de
   desconto) → servidor MCP que só embrulha essas funções.
 - O mesmo servidor atende o app Streamlit (agente Groq via
-  `langchain-mcp-adapters`, app público, gratuito) e o Claude Desktop/Code
+  `langchain-mcp-adapters`, plano gratuito; estudo de caso local) e o Claude Desktop/Code
   (com as skills em `.claude/skills/`).
 - `docs/spec_ferramentas_mcp.md` é a fonte única das regras das ferramentas.
   Skills e prompt do Groq são escritos a partir dela; se mudar, muda lá.
@@ -115,14 +115,14 @@ Ambiente: Windows, `venv/` com Python 3.14. Rodar a partir da raiz.
 ```
 venv\Scripts\python.exe -m pip install -r requirements-dev.txt   # instalar tudo (testes, notebook); só o app: requirements.txt
 venv\Scripts\python.exe gerar_requirements.py              # regenera requirements.txt (app) e requirements-dev.txt a partir do ambiente
-set KAGGLE_API_TOKEN=...  (ou ~/.kaggle/kaggle.json)         # credencial, nunca no código
+$env:KAGGLE_API_TOKEN="..."  (ou ~/.kaggle/kaggle.json)       # credencial, nunca no código
 venv\Scripts\python.exe baixar_dados.py                       # baixa data/raw/
 venv\Scripts\python.exe -m src.auditoria                      # relatorios/auditoria_fase1.md
 venv\Scripts\python.exe -m src.etl                            # ETL (~2 min): data/processed/dunnhumby.duckdb + relatorios/qualidade.md
-venv\Scripts\python.exe -m src.pacote exportar              # grava data/processed/parquet/ (versionado) a partir do banco do ETL; `verificar` confere
+venv\Scripts\python.exe -m src.pacote exportar              # opcional: grava data/processed/parquet/ (LOCAL, fora do Git) a partir do banco do ETL; `verificar` confere
 venv\Scripts\python.exe -m src.documentacao                 # reescreve os blocos gerados do README (--verificar só confere)
 venv\Scripts\python.exe -m src.views                          # recria as views num banco existente (~10 s)
-venv\Scripts\python.exe -m pytest tests -q                    # testes (705 até a 8; os da base completa pulam se o banco não existir)
+venv\Scripts\python.exe -m pytest tests -q                    # testes; os que precisam da base real pulam com motivo se o banco não existir (clone limpo roda sem falhas)
 # Em máquina com pouca memória (3,9 GB aqui) o suíte inteiro num só processo foi encerrado pelo sistema: rode por partes,
 # um processo cada: (1) test_cores test_cache test_graficos test_glossario test_views_sintetico test_ferramentas_formato test_skills_e_spec (180)
 # (2) test_nucleo_guardrails test_carga test_agente test_etl_regras (157) (3) test_etl_base_completa
@@ -134,13 +134,13 @@ venv\Scripts\python.exe notebooks\construir_notebook.py       # monta, executa e
 venv\Scripts\python.exe -m streamlit run app/app.py           # app (upload > CSV em data/ ou data/raw/ > pacote Parquet; carrega sozinho)
 venv\Scripts\python.exe -m eval.rodar_avaliacao --modo oraculo   # sem LLM: 20 SQLs esperados + 8 valores das ferramentas (eval/ULTIMO_ORACULO.md)
 venv\Scripts\python.exe -m eval.rodar_avaliacao --modo bloqueio  # sem LLM: 6 perguntas maliciosas + 40 cargas de ataque pelo MCP (eval/ULTIMO_BLOQUEIO.md)
-set GROQ_API_KEY=...                                          # no SEU terminal; nunca colar a chave na conversa
+$env:GROQ_API_KEY="..."                                       # PowerShell, no SEU terminal; nunca colar a chave na conversa
 venv\Scripts\python.exe -m eval.rodar_avaliacao --modo vivo      # com o agente: taxa de acerto, tokens, tempo (eval/ULTIMO_VIVO.md)
 ```
 
 Chave do Groq: variável `GROQ_API_KEY` (avaliação), `st.secrets["GROQ_API_KEY"]` (deploy) ou o campo da barra lateral.
 
-(Fase 6 completa: servidor MCP, agente via MCP, avaliação (oráculo, bloqueio e vivo) e skills revisadas. Falta só rodar o modo vivo com a GROQ_API_KEY do usuário.)
+(Avaliação viva: modelo `openai/gpt-oss-120b`; `--ids q01,a02` roda só essas perguntas e `python -m eval.reavaliar` recalcula uma rodada salva sem chamar o modelo. A rodada completa das 34 está pendente pelo limite diário da Groq. `python -m eval.medir_prompt` mede a composição do prompt.)
 
 ## Decisões registradas
 
@@ -371,24 +371,44 @@ Chave do Groq: variável `GROQ_API_KEY` (avaliação), `st.secrets["GROQ_API_KEY
   ferramentas de hoje (avisa se ficar velho) e execução do zero reproduz exatamente os mesmos textos e números.
 - 2026-10-07 — Fase 7 (bug do cliente MCP): dentro do Jupyter o `ServidorMCP` não subia porque `sys.stderr` do kernel não tem descritor de arquivo; o
   erro do subprocesso agora vai para `os.devnull` (`errlog`). Isso também tira o log do servidor do console do app.
-- 2026-10-07 — Fase 8 (aprovadas A-F; C = sem prints de interface, só os gráficos do notebook; D = rodar o modo vivo antes de publicar):
-  (A) pacote de dados em Parquet com o **histórico inteiro**, não o recorte de duas janelas do guia (`data/processed/parquet/`, 18,3 MB, versionado):
+- 2026-10-07 — Fase 8 (aprovadas A-F; C = sem prints de interface, só os gráficos do notebook; D = rodar o modo vivo antes de publicar; a publicação saiu do escopo em 2026-10-13):
+  (A) pacote de dados em Parquet com o **histórico inteiro**, não o recorte de duas janelas do guia (`data/processed/parquet/`, 18,3 MB, LOCAL: ver a decisão de 2026-10-13):
   o risco de pausa usa o histórico desde a semana 5, o CLV calibra um ano antes e a coorte usa a primeira compra, então só as duas janelas mudaria
   os números. `src/pacote.py` (`exportar`, `verificar`, `carregar_pacote`); `carga.carregar` ganhou a terceira origem (upload > CSV nas pastas > pacote).
   O manifesto guarda o MD5 dos CSV de origem: a `versao_base` do banco do pacote é a mesma do ETL enquanto parâmetros e `ETL_VERSAO` não mudarem
   (`etl.versao_de_md5s`); se mudarem, o pacote fica velho e a carga recusa com a instrução de regerar. Teste: o banco do pacote é igual ao do ETL em
   tabelas, views e nas 4 análises, campo a campo. Medido: carga do pacote 11,7 s, banco de 44 MB, 117 MB de RAM.
-- 2026-10-07 — Fase 8 (dependências e nuvem, aprovada B; Python 3.13 no deploy): `requirements.txt` agora é só o do app e do servidor MCP (89 pacotes,
+- 2026-10-07 — Fase 8 (dependências, aprovada B; Python 3.13 conferido para Linux): `requirements.txt` agora é só o do app e do servidor MCP (89 pacotes,
   fecho das dependências diretas, `pywin32` só com marcador de Windows); `requirements-dev.txt` traz o resto (`-r requirements.txt`). Ambos gerados por
   `gerar_requirements.py`. Verificado sem acesso à nuvem: os 87 pacotes de Linux têm wheel em cp313 e cp312 (`pip download --platform manylinux`),
   sem conflito nem dependência faltando sob os marcadores de Linux; o código parseia com a gramática 3.12. Teste: tudo o que `app/` e `src/` importam
   está no requirements do app. Sessão fria simulada (cópia sem `data/raw` nem banco): abertura 49 s (carga + 4 análises), app 344 MB (pico 631 MB no
-  Windows), primeira pergunta 12,7 s, servidor MCP +238 MB (total ~600 MB). Cabem poucas sessões de chat no plano de ~1 GB.
-- 2026-10-07 — Fase 8 (servidor MCP logo depois do clone): sem `ASSISTENTE_BANCO` e sem o banco do ETL, `mcp_server.garantir_banco` constrói o banco do pacote
-  (~12 s na primeira vez). `ServidorMCP` e o servidor não importam duckdb diretamente.
-- 2026-10-07 — Fase 8 (README, aprovada E): `README.md` com as 15 seções do guia; oito blocos entre `<!-- gerado:NOME -->` são reescritos por
+  Windows), primeira pergunta 12,7 s, servidor MCP +238 MB (total ~600 MB). Cabem poucas sessões de chat em uma máquina pequena.
+- 2026-10-07 — Fase 8 (servidor MCP): sem `ASSISTENTE_BANCO` e sem o banco do ETL, `mcp_server.garantir_banco` constrói o banco do pacote LOCAL, se existir
+  (~12 s na primeira vez); sem pacote, as ferramentas pedem `baixar_dados.py` e `python -m src.etl`. `ServidorMCP` e o servidor não importam duckdb diretamente.
+- 2026-10-07 — Fase 8 (README, aprovada E): `README.md` com as seções do guia (14 depois que a de Streamlit Cloud saiu); oito blocos entre `<!-- gerado:NOME -->` são reescritos por
   `python -m src.documentacao` (qualidade, métricas de `views.METRICAS`, resumos de `eval/ULTIMO_*.md`, estrutura de pastas e o "e daí?" das 4 análises, que vem
   das ferramentas). `tests/test_readme.py` (13): seções, links e imagens, blocos em dia com as ferramentas de hoje, nada de "versão anterior" ou saída de emprego
   (regra 8) no README, app, src e notebook, e números fixos do texto batem com o `config.yaml`. Os PNG do README são os do notebook (`notebooks/imagens/`,
-  extraídos por `construir_notebook.py`). Sem taxa de acerto do modelo no README enquanto `eval/ULTIMO_VIVO.md` não existir ("ainda não medido").
-  O endereço do app publicado fica como lembrete no topo até a publicação. Termos de uso do dataset: conferência do usuário (seção 15 do README).
+  extraídos por `construir_notebook.py`). O README só cita a linha de base e a validação por item (nunca `ULTIMO_VIVO.md`).
+  O topo tem lugar para o link do vídeo. Termos de uso do dataset: conferência do usuário (seção 14 do README).
+- 2026-10-13 — Dados fora do repositório: `data/` e `*.parquet` saíram do Git e de todo o histórico (reescrito). O repositório não contém dados da
+  dunnhumby; quem clonar roda `baixar_dados.py` e `python -m src.etl`. `src/pacote.py` fica como recurso LOCAL (exportar o Parquet a partir do
+  ETL), não como forma de distribuir dados. Sem dados, app e servidor MCP dizem "rode `baixar_dados.py` e `python -m src.etl`"; testes que
+  dependem da base real pulam com motivo. Substitui as decisões da fase 8 sobre pacote versionado e Streamlit Cloud.
+- 2026-10-13 — Escopo: estudo de caso para rodar localmente. Streamlit Cloud e modo demonstração com dados sintéticos (11 a 15 h) viraram roadmap; o
+  README tem um lugar no topo para o link do vídeo.
+- 2026-10-13 — Modelo: `llama-3.3-70b` foi descontinuado pela Groq; o agente usa `openai/gpt-oss-120b` (`config.yaml`, `agente.modelo`). Limite do
+  plano gratuito: 8 mil tokens por minuto, o que impõe espera em perguntas de 16 mil tokens.
+- 2026-10-13 — Avaliação viva (linha de base): 20/28 (71%), maliciosas 5/6, ataques 46/46. Régua tolerante a formato (milhar com espaço, formato
+  misto, `tipo: id` exato, ferramenta certa nas perguntas de análise, "dado inexistente" por regra); reavaliada sem modelo: 23/28 (82%), 6/6.
+  `ULTIMO_VIVO.md` é só a última rodada parcial: não citar como taxa até a rodada completa.
+- 2026-10-13 — Correções do agente (cada uma validada com `--ids`): glossário "Fiéis" (segmento RFM) separado de alta frequência; total vs.
+  like-for-like (`vw_yoy_*` cobrem só lojas nos dois períodos); exemplos do prompt sem números de resposta (teste confere); CLV e regra de
+  ambiguidade ("margem esperada" chama `calcular_clv` com as premissas); período descrito = filtro do SQL e `aviso_periodo` na consulta
+  (heurística); ferramenta chamada como SQL recebe orientação; estouro do limite de passos devolve resposta parcial com o que cada consulta trouxe.
+- 2026-10-13 — App: aba **Resumo** é a primeira (seis indicadores e quatro gráficos das análises, sem chamada ao modelo); chat é a segunda.
+  "E daí?": `conclusao` de uma frase sem estatística, `evidencia` com os números de negócio, `detalhes_tecnicos` (estatística) num expander
+  fechado; `md()` escapa `$` em todas as abas. Formato registrado em `docs/spec_ferramentas_mcp.md`.
+- 2026-10-13 — Composição do prompt (medição, sem otimizar): fixo ~2,9 mil tokens (instruções 32%, catálogo 41%, ferramentas 28%); pergunta típica
+  com 4 consultas ~17 mil. Redução da parte fixa fica no roadmap (`eval/MEDICAO_PROMPT.md`).

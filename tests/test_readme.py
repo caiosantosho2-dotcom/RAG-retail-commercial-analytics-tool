@@ -16,7 +16,7 @@ from src.config import CFG, RAIZ
 
 README = (RAIZ / "README.md").read_text(encoding="utf-8")
 SECOES = ["O problema de negócio", "O que o produto faz", "Arquitetura", "Dados", "Limpeza e qualidade", "Definição das métricas", "O chatbot",
-          "As análises", "Guard-rails e testes", "Como rodar local", "Publicação no Streamlit Community Cloud", "Estrutura de pastas",
+          "As análises", "Guard-rails e testes", "Como rodar local", "Estrutura de pastas",
           "Limitações", "Implementado e roadmap", "Fonte dos dados e termos de uso"]
 
 
@@ -69,12 +69,15 @@ def test_readme_e_app_nao_citam_versao_anterior_nem_saida_de_emprego():
         assert not achados, (nome, achados)
 
 
-def test_readme_nao_afirma_taxa_de_acerto_do_modelo_sem_o_modo_vivo():
-    vivo = RAIZ / "eval" / "ULTIMO_VIVO.md"
-    if vivo.exists():
-        assert vivo.read_text(encoding="utf-8").split("\n- ", 1)[1].split("\n")[0] in README or "Taxa de acerto" in README
-    else:
-        assert "ainda não medido" in README
+def test_readme_afirma_so_a_linha_de_base_e_diz_que_a_rodada_completa_esta_pendente():
+    assert "20 de 28 (71%)" in README and "23 de 28 (82%)" in README and "está pendente" in README
+    assert "nenhuma taxa vem de `eval/ULTIMO_VIVO.md`" in README
+
+
+def test_readme_nao_promete_app_publicado_nem_dados_no_repositorio():
+    for proibido in ("versionado no repositório", "Parquet do repositório", "Publicação no Streamlit", "set GROQ_API_KEY"):
+        assert proibido not in README, proibido
+    assert "O repositório não contém dados da dunnhumby" in README and "Vídeo de demonstração" in README
 
 
 def test_numeros_fixos_do_texto_batem_com_o_config():
@@ -93,7 +96,8 @@ def test_readme_nao_tem_segredo_e_o_modelo_de_segredos_e_so_um_exemplo():
     assert ".streamlit/secrets.toml" in (RAIZ / ".gitignore").read_text(encoding="utf-8")
 
 
-@pytest.mark.skipif(not (RAIZ / "data" / "processed" / "parquet" / "manifesto.json").exists(), reason="sem pacote Parquet")
+@pytest.mark.skipif(not ((RAIZ / CFG["banco"]["arquivo"]).exists() or (RAIZ / "data" / "processed" / "parquet" / "manifesto.json").exists()),
+                    reason="sem dados: rode `python baixar_dados.py` e `python -m src.etl`")
 def test_blocos_gerados_do_readme_estao_em_dia_com_as_ferramentas_de_hoje():
     """Roda as quatro análises (cerca de 1 minuto). Se falhar: `venv\\Scripts\\python.exe -m src.documentacao`."""
     from src.nucleo import banco, cache

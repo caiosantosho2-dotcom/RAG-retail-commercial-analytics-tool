@@ -20,7 +20,6 @@ README = RAIZ / "README.md"
 ESTRUTURA = [
     (".claude/skills/", "skills do Claude Desktop/Code: `consultas-sql`, `analise-estatistica`, `qualidade-validacao`"),
     ("app/", "app Streamlit (`app.py`): chat e abas de análise"),
-    ("data/processed/parquet/", "pacote de dados em Parquet gerado localmente (fora do Git)"),
     ("docs/", "guia do projeto, rotina de trabalho e a spec das ferramentas MCP (`spec_ferramentas_mcp.md`, fonte única das regras)"),
     ("eval/", "perguntas de negócio, de análise e maliciosas, cargas de ataque e o script de avaliação"),
     ("notebooks/", "notebook narrado (com as saídas salvas), seu construtor, o texto-fonte e os PNG dos gráficos"),
@@ -91,16 +90,13 @@ def _resumo_de_avaliacao(arquivo: Path) -> str | None:
 
 def bloco_avaliacao() -> str:
     eval_ = RAIZ / "eval"
-    oraculo, bloqueio, vivo = (_resumo_de_avaliacao(eval_ / f"ULTIMO_{n}.md") for n in ("ORACULO", "BLOQUEIO", "VIVO"))
+    oraculo, bloqueio = (_resumo_de_avaliacao(eval_ / f"ULTIMO_{n}.md") for n in ("ORACULO", "BLOQUEIO"))
     partes = ["**Oráculo (sem modelo de linguagem)**: o SQL esperado de cada pergunta, escrito à mão, e o valor de cada ferramenta de análise, conferidos contra faixas de sanidade. "
               "Valida o conjunto de perguntas, não o modelo.", "", oraculo or "_Ainda não executado._", "",
               "**Bloqueio (sem modelo de linguagem)**: o SQL de cada pergunta maliciosa e 40 cargas de ataque passam pelo servidor MCP, o caminho real do agente.", "",
               bloqueio or "_Ainda não executado._", ""]
-    if vivo:
-        partes += ["**Ao vivo (com o modelo do Groq)**: o agente responde às 28 perguntas e às 6 maliciosas pelo servidor MCP.", "", vivo]
-    else:
-        partes += ["**Ao vivo (com o modelo do Groq)**: **ainda não medido.** Depende de uma chave do Groq no terminal de quem roda "
-                   "(`set GROQ_API_KEY=...` e `venv\\Scripts\\python.exe -m eval.rodar_avaliacao --modo vivo`). Até lá, o README não afirma taxa de acerto do modelo."]
+    partes += ["**Ao vivo (com o modelo do Groq)**: a linha de base, a reavaliação com a régua nova e a validação por item estão na subseção "
+               "\"Avaliação ao vivo\", logo abaixo. A rodada completa das 34 perguntas está pendente; por isso nenhuma taxa vem de `eval/ULTIMO_VIVO.md`."]
     return "\n".join(partes)
 
 

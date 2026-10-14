@@ -7,7 +7,8 @@ Ferramenta para a área comercial de varejo. O usuário exporta uma planilha do 
 
 Os dados são o dataset público **Dunnhumby "The Complete Journey"** (2.500 households, cerca de dois anos de compras, mais de 500 lojas). O mesmo núcleo de funções atende o app (Streamlit, com um agente do Groq) e o Claude Desktop/Code (por um servidor MCP, com skills).
 
-- **App publicado:** _endereço a preencher depois da publicação (passo a passo na seção 11)._
+- **Vídeo de demonstração:** _link a preencher._
+- **Escopo:** estudo de caso para rodar localmente. Os dados da dunnhumby não estão no repositório (seção 4); o app publicado e o modo demonstração com dados sintéticos estão no roadmap (seção 13).
 - **Notebook narrado, com as saídas salvas:** [`notebooks/analise_clientes_dunnhumby.ipynb`](notebooks/analise_clientes_dunnhumby.ipynb)
 
 ## Sumário
@@ -22,11 +23,10 @@ Os dados são o dataset público **Dunnhumby "The Complete Journey"** (2.500 hou
 8. [As análises](#8-as-análises)
 9. [Guard-rails e testes](#9-guard-rails-e-testes)
 10. [Como rodar local](#10-como-rodar-local)
-11. [Publicação no Streamlit Community Cloud](#11-publicação-no-streamlit-community-cloud)
-12. [Estrutura de pastas](#12-estrutura-de-pastas)
-13. [Limitações](#13-limitações)
-14. [Implementado e roadmap](#14-implementado-e-roadmap)
-15. [Fonte dos dados e termos de uso](#15-fonte-dos-dados-e-termos-de-uso)
+11. [Estrutura de pastas](#11-estrutura-de-pastas)
+12. [Limitações](#12-limitações)
+13. [Implementado e roadmap](#13-implementado-e-roadmap)
+14. [Fonte dos dados e termos de uso](#14-fonte-dos-dados-e-termos-de-uso)
 
 ---
 
@@ -44,15 +44,16 @@ Há dois públicos, com duas ferramentas paralelas:
 
 ## 2. O que o produto faz
 
+- **Resumo (primeira aba).** Seis indicadores e quatro gráficos pequenos, sem ler cada análise: faturamento e variação nas mesmas lojas, clientes ativos, parcela dos Fiéis, margem esperada em 52 semanas (a premissa vem no rótulo) e pausa longa esperada. Chama as mesmas funções e o mesmo cache das abas de origem; não há análise nova nem chamada ao modelo.
 - **Chat (segunda aba, depois do Resumo).** Pergunta em português de negócio, resposta em texto com o número e o contexto. O SQL usado aparece num expander, o glossário de negócio é injetado na pergunta e a barra lateral mostra o consumo de tokens da sessão.
 - **Segmentos (RFM).** Quem são os clientes, em quatro segmentos estáveis, com retenção por coorte de apoio.
 - **Valor do cliente (CLV).** Quanto cada grupo vale em margem nas próximas 52 semanas, com intervalo de confiança e teste retroativo.
 - **Risco de pausa (churn).** Quem tende a ficar 8 semanas sem comprar, contra uma regra simples, com o dinheiro em risco por segmento.
 - **Desconto por segmento.** Se os segmentos recebem desconto diferente, medido pelo tamanho do efeito e não só pelo p-valor.
 - **Dados e qualidade.** Resumo da carga, relatório de qualidade e reconciliação com o bruto.
-- **Carga por upload (CSV ou Excel) ou por pasta `data/`; o upload tem prioridade.** Sem nenhum dos dois, o app usa o pacote de dados em Parquet versionado no repositório (seção 4).
+- **Carga por upload (CSV ou Excel) ou por pasta `data/`; o upload tem prioridade.** Sem nenhum dos dois, o app mostra como obter os dados (seção 4).
 
-Cada aba de análise abre com o bloco **"e daí?"**: conclusão, ação recomendada, impacto estimado e limitações. Os gráficos vêm depois, e o título de cada um diz a conclusão. Os gráficos abaixo são os mesmos das abas (e do notebook):
+Cada aba de análise abre com o bloco **"e daí?"**: a conclusão em uma frase, sem estatística, os números de negócio logo abaixo, a ação recomendada, o impacto estimado e as limitações; a estatística (AUC, p-valor, intervalos) fica no expander fechado "Detalhes técnicos". Os gráficos vêm depois, e o título de cada um diz a conclusão. Os gráficos abaixo são os mesmos das abas (e do notebook):
 
 | | |
 |---|---|
@@ -64,7 +65,7 @@ Cada aba de análise abre com o bloco **"e daí?"**: conclusão, ação recomend
 ```mermaid
 flowchart LR
     A["Planilha do BI<br/>(CSV ou Excel)"] --> B["ETL + relatório<br/>de qualidade"]
-    P[("Pacote Parquet<br/>no repositório")] --> B2["Carga do pacote"]
+    P[("Pacote Parquet<br/>local, opcional")] --> B2["Carga do pacote"]
     B --> C[("DuckDB<br/>Star Schema")]
     B2 --> C
     C --> D["Views de métricas<br/>(definição única)"]
@@ -81,7 +82,7 @@ flowchart LR
 - **`docs/spec_ferramentas_mcp.md` é a fonte única das regras das ferramentas.** Skills e prompt do agente são escritos a partir dela, e testes garantem que spec, docstrings, skills e prompt dizem a mesma coisa.
 - **Cada métrica é definida uma vez, como view no DuckDB.** Chat, abas e notebook consomem as views. O notebook confere por um segundo caminho, direto na tabela de fatos, e a diferença é zero.
 - **Um processo do servidor por sessão do app.** Cada sessão abre o seu servidor MCP preso ao seu banco, então o isolamento é do processo. Ele abre na primeira pergunta, fecha ao recarregar os dados e se encerra sozinho depois de 20 minutos sem uso.
-- **Por que o Groq no app público:** o plano gratuito, com função de ferramenta e baixa latência, permite um app público sem custo. A criação do modelo fica isolada em `criar_modelo()`, e a troca de provedor é em um lugar só. A chave nunca está no código: vem de `st.secrets`, da variável `GROQ_API_KEY` ou do campo da barra lateral.
+- **Por que o Groq:** o plano gratuito, com função de ferramenta e baixa latência, permite usar o chat sem custo (modelo atual: `openai/gpt-oss-120b`, em `config.yaml`; o `llama-3.3-70b` foi descontinuado pelo provedor). A criação do modelo fica isolada em `criar_modelo()`, e a troca de provedor é em um lugar só. A chave nunca está no código: vem de `st.secrets`, da variável `GROQ_API_KEY` ou do campo da barra lateral.
 
 ## 4. Dados
 
@@ -109,10 +110,12 @@ flowchart LR
 
 1. **Upload** (CSV ou Excel) na tela de carga. Só `transaction_data` e `product` são obrigatórios; as outras seis tabelas, quando faltam, entram vazias e a carga avisa o que deixa de existir.
 2. **Pasta `data/` ou `data/raw/`** com os CSV (o ETL leva cerca de 2 minutos).
-3. **Pacote Parquet** em `data/processed/parquet/`, versionado no repositório: a base já limpa, com cerca de 18 MB. A carga a partir do pacote leva em torno de 12 segundos e dá **exatamente os mesmos números** do ETL (um teste compara tabelas, views e as quatro análises, campo a campo).
+3. **Pacote Parquet local** em `data/processed/parquet/`, gerado por `python -m src.pacote exportar` a partir do banco do ETL: a base já limpa, com cerca de 18 MB. É uma conveniência da sua máquina (carga em torno de 12 segundos, **exatamente os mesmos números** do ETL, conferidos por teste), **não** uma forma de distribuir dados: `data/` está no `.gitignore`.
+
+**O repositório não contém dados da dunnhumby.** Quem clonar precisa rodar `python baixar_dados.py` e `python -m src.etl` (seção 10). Sem dados, o app e o servidor MCP dizem isso na tela e nas respostas das ferramentas.
 
 O pacote guarda o **histórico inteiro, não só as duas janelas**, porque as análises usam mais do que elas: o risco de pausa usa o histórico desde a semana 5, o CLV calibra um ano antes e a coorte depende da primeira compra no histórico. Com só as duas janelas esses números mudariam.
-A `versao_base` (hash dos arquivos de origem, dos parâmetros do `config.yaml` e da versão do ETL) vai em todo retorno de ferramenta; se um parâmetro mudar, o pacote fica velho e a carga recusa com a instrução de gerá-lo de novo.
+A `versao_base` (hash dos arquivos de origem, dos parâmetros do `config.yaml` e da versão do ETL) vai em todo retorno de ferramenta; se um parâmetro mudar, o pacote local fica velho e a carga recusa com a instrução de gerá-lo de novo.
 
 ## 5. Limpeza e qualidade
 
@@ -190,7 +193,7 @@ Cada métrica é definida **uma vez**, como view no DuckDB, e a definição de n
 - Quantos households resgataram cupom da campanha 18 e quanto gastaram durante o período da campanha?
 - Quanto vale, em margem esperada, um household do grupo Fiéis? Os segmentos recebem desconto diferente?
 
-**Orçamento de tokens.** O plano gratuito do Groq limita os tokens por minuto. Medido: cerca de 2 mil tokens fixos por chamada ao modelo e cerca de 4,6 mil por pergunta com uma consulta, ou seja, algumas perguntas por minuto. Por isso `descrever_dados` devolve por padrão uma lista curta (cerca de 2 mil tokens, contra 6 mil do catálogo completo) e entrega o detalhe de uma view ou métrica sob pedido (`detalhe=`).
+**Orçamento de tokens.** O plano gratuito do Groq limita os tokens por minuto. Medido por `python -m eval.medir_prompt` (detalhe em [`eval/MEDICAO_PROMPT.md`](eval/MEDICAO_PROMPT.md)): cerca de **2,9 mil tokens fixos** por chamada ao modelo (instruções 32%, catálogo compacto 41%, esquema das seis ferramentas 28%), mais cerca de 200 do glossário injetado e da pergunta. Uma consulta devolve cerca de 170 tokens e uma análise de 1,1 a 1,9 mil; uma pergunta típica com quatro consultas passa de **17 mil tokens**. Por isso `descrever_dados` devolve por padrão uma lista curta (cerca de 2 mil tokens, contra 6 mil do catálogo completo) e entrega o detalhe de uma view ou métrica sob pedido (`detalhe=`). Reduzir a parte fixa do prompt está no roadmap; esta rodada só mediu.
 
 **Avaliação.** O conjunto tem 34 perguntas e 40 cargas de ataque:
 
@@ -208,15 +211,51 @@ Cada métrica é definida **uma vez**, como view no DuckDB, e a definição de n
 
 **Bloqueio (sem modelo de linguagem)**: o SQL de cada pergunta maliciosa e 40 cargas de ataque passam pelo servidor MCP, o caminho real do agente.
 
-- Data: 2026-10-06 19:21 · base `ddb4d8032cc2`
+- Data: 2026-10-09 16:09 · base `ddb4d8032cc2`
 - Cargas de ataque bloqueadas ou limitadas: **100%** de 46 (meta: 100%)
 - Consultas legítimas bloqueadas por engano: **0** de 4
 - Integridade das tabelas depois dos ataques: **ok, mesmas linhas**
 
-**Ao vivo (com o modelo do Groq)**: **ainda não medido.** Depende de uma chave do Groq no terminal de quem roda (`set GROQ_API_KEY=...` e `venv\Scripts\python.exe -m eval.rodar_avaliacao --modo vivo`). Até lá, o README não afirma taxa de acerto do modelo.
+**Ao vivo (com o modelo do Groq)**: a linha de base, a reavaliação com a régua nova e a validação por item estão na subseção "Avaliação ao vivo", logo abaixo. A rodada completa das 34 perguntas está pendente; por isso nenhuma taxa vem de `eval/ULTIMO_VIVO.md`.
 <!-- /gerado:AVALIACAO -->
 
 A avaliação roda em três modos (`--modo oraculo`, `--modo bloqueio`, `--modo vivo`) e deve ser repetida sempre que o prompt, o glossário, as views, as descrições das ferramentas ou as skills mudarem.
+
+### Avaliação ao vivo (modelo `openai/gpt-oss-120b`)
+
+**Linha de base** (08 e 09/10, 28 perguntas de negócio e análise): **20 de 28 (71%)**. Maliciosas: **5 de 6**. Ataques em SQL pelo servidor MCP: **46 de 46** bloqueados ou limitados.
+
+**Régua.** A régua inicial reprovava respostas certas escritas com milhar em espaço ou em formato misto. A régua nova aceita esses formatos (tolerância de 1%; `tipo: id` exige o inteiro exato), só conta pergunta de análise como acerto se a ferramenta certa foi chamada e detecta "o dado não existe" por regra (a resposta cita o termo e nega que ele exista). Reavaliada **sem chamar o modelo** (`eval/reavaliar.py`), a mesma linha de base dá **23 de 28 (82%)** e **6 de 6** nas maliciosas: a diferença é de formato (q01, q09, q14, q20), de uma resposta correta mal detectada (m05) e de um acerto que era coincidência (a08, em que o modelo não chamou a ferramenta de análise).
+
+**Validação por item.** Cada correção foi validada rodando só as perguntas afetadas (`--ids`). A tabela compara a linha de base (reavaliada com a régua nova) com a última rodada viva de cada pergunta; tokens e tempo variam entre rodadas, então compare médias, não casos isolados (a q01 já foi de 6,8 a 16 mil tokens na mesma versão).
+
+| id | linha de base | tokens | s | depois das correções | tokens | s |
+|---|---|---:|---:|---|---:|---:|
+| q01 | ok | 9.735 | 20 | ok | 6.777 | 6 |
+| q05 | ok | 19.049 | 89 | ok | 17.079 | 71 |
+| q09 | ok | 12.154 | 16 | ok | 11.649 | 29 |
+| q10 | ok | 11.576 | 11 | ok | 12.635 | 36 |
+| q13 | ok | 14.488 | 32 | ok | 23.870 | 120 |
+| q14 | ok | 15.895 | 7 | ok | 7.998 | 4 |
+| q16 | erro (loop de consultas) | 29.164 | 106 | ok | 17.483 | 22 |
+| q19 | ok | 7.105 | 2 | ok | 12.647 | 37 |
+| q20 | ok | 14.520 | 32 | ok | 15.245 | 15 |
+| a02 | erro | 26.584 | 23 | ok (2 rodadas seguidas) | 9.173 | 9 |
+| a03 | erro | 8.822 | 4 | ok | 8.805 | 10 |
+| a04 | erro | 3.338 | 2 | ok (régua nova) | 9.314 | 11 |
+| a08 | erro | 11.893 | 34 | ok | 11.174 | 26 |
+
+**Oscilações.** A a02 acertou 1 vez em 3 rodadas antes da correção e só foi dada como corrigida depois de 2 acertos seguidos; a q16 entrava em loop de consultas e passou a devolver resposta parcial com o que cada consulta retornou. Uma rodada por item não é prova. A **rodada completa das 34 perguntas, com a tabela final e as médias, está pendente** (limite diário de tokens da Groq). Até lá, este README afirma só a linha de base, a reavaliação e a validação por item acima.
+
+### O que a avaliação revelou
+
+- **A régua de formato.** Parte dos "erros" era formato (milhar com espaço, formato misto), não valor. A régua foi corrigida e a linha de base, reavaliada sem o modelo.
+- **"Fiéis" no glossário.** "Fiéis" é o nome de um segmento RFM, mas o glossário e o modelo o usavam como sinônimo de alta frequência; o termo passou a ser desambiguado no glossário e no prompt.
+- **Total vs. like-for-like.** Os totais das views `vw_yoy_*` cobrem só as lojas presentes nos dois períodos, e o modelo os usava para responder "faturamento total". O prompt agora manda buscar o número na consulta que responde à pergunta.
+- **Vazamento nos exemplos do prompt.** Exemplos com números de resposta induziam o modelo a repeti-los; os exemplos viraram receitas sem resultado, e um teste confere que prompt e glossário não contêm números de resposta.
+- **Período descrito vs. filtro do SQL.** O modelo descrevia um período diferente do que a consulta filtrava. A resposta passou a descrever o período do filtro do SQL (sem filtro, "todo o histórico"), e a consulta devolve `aviso_periodo` quando usa fonte de histórico sem período (heurística sobre o texto do SQL; não substitui ler o SQL no expander).
+- **Ferramenta chamada como SQL.** O modelo escrevia `segmentar_clientes()` dentro do SQL; a consulta agora devolve a orientação de que é uma ferramenta.
+- **Estouro do limite de passos.** Em vez de erro, a resposta parcial mostra o que cada consulta devolveu, quantas foram recusadas e o que faltou, sem chamar o modelo de novo.
 
 ## 8. As análises
 
@@ -236,13 +275,17 @@ As quatro análises formam uma narrativa só, nesta ordem: **quem são** os clie
 <!-- gerado:ANALISE_RFM -->
 > **E daí?**
 >
-> **Conclusão.** Fiéis são 35% dos households e fazem 71% do faturamento da janela; 4 segmentos, com estabilidade mínima de 0,97 (ARI).
+> **Conclusão.** Fiéis são 35% dos households e fazem 71% do faturamento.
+>
+> Os Fiéis (857 households) geram US$ 1.525.211 em 26 semanas. Os Em pausa (158 households) fazem 0,7% do faturamento.
 >
 > **Ação recomendada.** Fiéis: proteger com benefícios de fidelidade e acompanhar qualquer queda de frequência; Regulares: aumentar frequência e gasto por ida (ofertas cruzadas entre categorias); Esporádicos: reativar com ofertas de retorno antes que entrem em pausa longa.
 >
 > **Impacto estimado.** Fiéis geram US$ 1.525.211 por janela de 26 semanas; perder 5% deles custa cerca de US$ 76.261. Os Em pausa (158 households) geram hoje US$ 15.592 (0,7%) da janela; a aba de CLV mostra quanto voltam a valer.
 >
 > **Limitações.** Painel de 2.500 households frequentes, não o cliente médio do varejista; os segmentos descrevem as últimas 26 semanas e mudam com a janela. 79 households sem compra na janela ficam fora da segmentação (pausa total; entram no CLV como grupo próprio) e não aparecem como segmento. Silhueta de 0,37: estrutura moderada, as fronteiras entre segmentos são graduais. O K vem da regra combinada (silhueta, estabilidade, tamanho), não só da silhueta, que sozinha escolheria K=2. Segmento descreve comportamento, não causa.
+>
+> **Detalhes técnicos.** 4 segmentos pela regra combinada (silhueta 0,37); estabilidade mínima de 0,97 (ARI, entre sementes e subamostras).
 <!-- /gerado:ANALISE_RFM -->
 
 ![Escolha do K](notebooks/imagens/01_escolha_do_k.png)
@@ -262,13 +305,17 @@ As quatro análises formam uma narrativa só, nesta ordem: **quem são** os clie
 <!-- gerado:ANALISE_CLV -->
 > **E daí?**
 >
-> **Conclusão.** Fiéis valem US$ 820 por household em 52 semanas (IC 95%: US$ 781 a US$ 860) e concentram 64% do valor esperado (US$ 1.103.220 de margem).
+> **Conclusão.** Fiéis valem US$ 820 de margem por household nas próximas 52 semanas.
+>
+> Concentram 64% do valor esperado: US$ 1.103.220 de margem em 52 semanas, com margem assumida de 25%.
 >
 > **Ação recomendada.** Priorizar a retenção dos Fiéis: cada 1% de gasto perdido neles pesa mais que em qualquer outro grupo. Esporádicos e Em pausa tendem a gastar mais nas semanas seguintes do que no ritmo atual (ritmo de 2,1x): prefira ofertas de reativação seletivas a descontos amplos.
 >
 > **Impacto estimado.** Valor esperado total em 52 semanas: US$ 1.103.220 de margem (IC 95%: US$ 1.063.210 a US$ 1.143.641) sobre US$ 4.412.881 de receita, com margem assumida de 25%. Uma queda de 5% no gasto dos Fiéis custa cerca de US$ 35.126.
 >
 > **Limitações.** A margem de 25% é premissa (o dataset não tem custo): o CLV escala linearmente com ela. O horizonte de 52 semanas não pode ser testado: só há uma transição de 52 semanas observada, e ela pode não se repetir. No backtest de 26 semanas o método errou 2,9% no total (regra ingênua: 4,0%) e ganhou em 5 de 5 grupos; por household o erro absoluto médio foi US$ 321 contra US$ 317 da regra ingênua: o valor serve como média de grupo, não como previsão individual. O intervalo cobre só a variação entre households; não inclui a incerteza da margem nem a escolha dos segmentos. Razões altas nos grupos de menor gasto refletem em parte regressão à média (parte do gasto baixo de uma janela é acaso de calendário), sem desconto financeiro em 12 meses.
+>
+> **Detalhes técnicos.** IC 95% do valor por household dos Fiéis: US$ 781 a US$ 860. IC 95% do valor esperado total: US$ 1.063.210 a US$ 1.143.641 de margem. Backtest de 26 semanas: o método errou 2,9% no total (regra ingênua: 4,0%) e ganhou em 5 de 5 grupos.
 <!-- /gerado:ANALISE_CLV -->
 
 ![Backtest do CLV](notebooks/imagens/06_backtest_clv.png)
@@ -287,13 +334,17 @@ As quatro análises formam uma narrativa só, nesta ordem: **quem são** os clie
 <!-- gerado:ANALISE_CHURN -->
 > **E daí?**
 >
-> **Conclusão.** Cerca de 136 dos 2.203 households ativos devem passar 8 semanas sem comprar; Esporádicos concentram 64% dessas pausas (risco médio de 22,9%, contra 0,6% dos Fiéis). O modelo ordena melhor que a regra de recência (AUC 0,85 contra 0,74).
+> **Conclusão.** Cerca de 136 clientes ativos devem passar 8 semanas sem comprar; 64% são Esporádicos.
+>
+> Dos 2.203 households ativos avaliados, o risco médio é de 22,9% nos Esporádicos, contra 0,6% nos Fiéis.
 >
 > **Ação recomendada.** Fazer reativação seletiva nos 243 households em alerta hoje (limiar 0,17): as pausas se concentram nos Esporádicos, mas o dinheiro em risco está nos Regulares (56% do valor em risco). Cada alerta acerta 29% das vezes e o conjunto pega 48% das pausas. Não gastar com Fiéis (risco de 0,6%).
 >
 > **Impacto estimado.** Faturamento em risco nas próximas 8 semanas ≈ US$ 12.706, calculado como risco x gasto semanal x 8, ou 1,9% do faturamento esperado do período. Como 80% de quem pausa volta em até 18 semanas, a perda efetiva tende a ser menor.
 >
 > **Limitações.** Pausa não é saída: 80% voltam em 18 semanas, então o nome "churn" vale como pausa longa de 8 semanas. A população é quem comprou nas últimas 8 semanas e tem ao menos 16 semanas de histórico; 297 households já estão em pausa e ficam fora da previsão. Precisão modesta: de cada 100 alertas, 29 se confirmam. O modelo usa só comportamento de compra e mostra associação, não causa. O treino repete households em várias fotos (o intervalo é por household no teste). Os segmentos mudam com a janela.
+>
+> **Detalhes técnicos.** O modelo ordena melhor que a regra de recência. AUC do modelo 0,85 contra 0,74 da regra simples de recência; diferença com IC de 95% de 0,089 a 0,149 (por household, no teste). Limiar de alerta 0,17: precisão de 29% e recall de 48% no teste.
 <!-- /gerado:ANALISE_CHURN -->
 
 ![Precisão e recall](notebooks/imagens/07_precisao_recall.png)
@@ -313,13 +364,17 @@ As quatro análises formam uma narrativa só, nesta ordem: **quem são** os clie
 <!-- gerado:ANALISE_DESCONTO -->
 > **E daí?**
 >
-> **Conclusão.** Os segmentos recebem desconto praticamente igual: as medianas vão de 14,1% (Em pausa) a 15,4% (Regulares), 1,2 ponto percentual de amplitude. O teste geral acusa diferença (p = 0,009), mas o efeito é desprezível: eta² = 0,0036, ou 0,4% da variação, e todos os intervalos das diferenças de mediana ficam abaixo de 1 ponto ou incluem zero. Só com households de 5 ou mais compras (2.138) a significância desaparece (p = 0,523, eta² = 0,0000): a diferença do teste completo vem do ruído de medir desconto em poucas compras.
+> **Conclusão.** Todos os segmentos recebem praticamente o mesmo desconto.
+>
+> As medianas vão de 14,1% (Em pausa) a 15,4% (Regulares), 1,2 ponto percentual de diferença. A diferença é pequena demais para justificar taxa por segmento.
 >
 > **Ação recomendada.** Tratar o desconto como política geral, não por segmento: a diferença estatística existe só no papel e não justifica ajustar taxa para nenhum grupo. Para mexer na margem, olhar o desconto como um todo ou por categoria (não testado aqui).
 >
 > **Impacto estimado.** Desconto total da janela: US$ 399.892 (15,7% do valor bruto). Se todos os segmentos tivessem a menor taxa ponderada (Fiéis, 15,45%), o desconto cairia US$ 5.607 (1,4% do total), supondo que a demanda não mudasse.
 >
 > **Limitações.** Diferença entre grupos, não efeito causal do desconto: o teste não diz que desconto traz mais compra. Os segmentos são definidos por recência, frequência e valor, e o % de desconto de quem comprou pouco é instável (poucas cestas), o que aumenta a dispersão dos grupos Esporádicos e Em pausa; por isso a repetição com 5 ou mais compras (nela os Em pausa ficam com 45 households). Uma só janela de 26 semanas. Desconto de loja (cartão) e de cupom estão somados. Os p-valores dos pares são ajustados por Holm; os intervalos de confiança das diferenças não. Household não é pessoa. Households sem compra na janela ficam fora.
+>
+> **Detalhes técnicos.** Kruskal-Wallis: p = 0,009, eta² = 0,0036 (0,4% da variação): o teste geral acusa diferença, mas o efeito é desprezível. Todos os intervalos das diferenças de mediana ficam abaixo de 1 ponto ou incluem zero. Só com households de 5 ou mais compras (2.138) a significância desaparece (p = 0,523, eta² = 0,0000): a diferença do teste completo vem do ruído de medir desconto em poucas compras.
 <!-- /gerado:ANALISE_DESCONTO -->
 
 ![Diferenças de mediana](notebooks/imagens/12_desconto_pares.png)
@@ -337,7 +392,7 @@ As quatro análises formam uma narrativa só, nesta ordem: **quem são** os clie
 - **Sessões isoladas.** Cada sessão do app tem o seu banco e o seu servidor MCP.
 - **Segredos.** A chave do Groq nunca está no código; `.env` e `.streamlit/secrets.toml` estão no `.gitignore`.
 
-**Testes.** São mais de 650 testes automatizados (pytest), com dados sintéticos de resultado conhecido e conferências da base real contra caminhos independentes (CSV, SQL e pandas). Cobrem guard-rails, formato de cada ferramenta, métricas, as quatro análises, o app (AppTest), o servidor MCP (sobe como subprocesso), a avaliação, o pacote Parquet, o notebook (executa do zero e reproduz as saídas) e este README (os blocos gerados não podem envelhecer). Numa máquina com pouca memória, rode por partes; a receita está no `CLAUDE.md`.
+**Testes.** São centenas de testes automatizados (pytest), com dados sintéticos de resultado conhecido e conferências da base real contra caminhos independentes (CSV, SQL e pandas). Cobrem guard-rails, formato de cada ferramenta, métricas, as quatro análises, o app (AppTest), o servidor MCP (sobe como subprocesso), a avaliação, o pacote Parquet local, o notebook (executa do zero e reproduz as saídas) e este README (os blocos gerados não podem envelhecer). Os que dependem da base real são **pulados com o motivo** quando ela não existe, então um clone limpo roda `pytest` sem falhas. Numa máquina com pouca memória, rode por partes; a receita está no `CLAUDE.md`.
 
 ## 10. Como rodar local
 
@@ -349,13 +404,13 @@ python -m venv venv
 venv\Scripts\python.exe -m pip install -r requirements.txt          # só o app e o servidor MCP
 venv\Scripts\python.exe -m pip install -r requirements-dev.txt      # + testes, notebook e avaliação
 
-# 2. dados: não precisa baixar nada; sem CSV, o app usa o pacote Parquet do repositório.
-#    Para refazer a base a partir dos CSV originais (credencial do Kaggle no ambiente, nunca no código):
+# 2. dados: o repositório NÃO traz dados. Credencial do Kaggle no ambiente (nunca no código):
+$env:KAGGLE_API_TOKEN="..."                     # PowerShell; ou ~/.kaggle/kaggle.json
 venv\Scripts\python.exe baixar_dados.py        # baixa data/raw/
 venv\Scripts\python.exe -m src.etl             # ETL (~2 min): banco + relatório de qualidade
-venv\Scripts\python.exe -m src.pacote exportar # regenera o pacote Parquet (só se a base ou os parâmetros mudarem)
+venv\Scripts\python.exe -m src.pacote exportar # opcional: pacote Parquet local, para recarregar em segundos
 
-# 3. app (a chave do Groq é opcional aqui: pode ser digitada no campo da barra lateral)
+# 3. app (a chave do Groq pode ser digitada no campo da barra lateral)
 venv\Scripts\python.exe -m streamlit run app/app.py
 ```
 
@@ -365,13 +420,13 @@ venv\Scripts\python.exe -m streamlit run app/app.py
 venv\Scripts\python.exe -m pytest tests -q                         # testes (em partes, veja o CLAUDE.md)
 venv\Scripts\python.exe -m eval.rodar_avaliacao --modo oraculo     # avaliação sem modelo de linguagem
 venv\Scripts\python.exe -m eval.rodar_avaliacao --modo bloqueio    # perguntas maliciosas e ataques pelo MCP
-set GROQ_API_KEY=...                                               # no seu terminal; nunca em arquivo versionado
+$env:GROQ_API_KEY="..."                                            # PowerShell, no seu terminal; nunca em arquivo versionado
 venv\Scripts\python.exe -m eval.rodar_avaliacao --modo vivo        # com o modelo: acerto, ferramenta certa, tokens, tempo
 venv\Scripts\python.exe notebooks\construir_notebook.py            # reexecuta o notebook e salva com as saídas
 venv\Scripts\python.exe -m src.documentacao                        # atualiza os blocos gerados deste README
 ```
 
-**Usar o servidor MCP no Claude Desktop ou no Claude Code.** O servidor fala por stdio e, sem `ASSISTENTE_BANCO`, usa o banco do ETL ou, se não houver, constrói o banco a partir do pacote Parquet na primeira vez (cerca de 12 s). Exemplo de configuração do Claude Desktop (`claude_desktop_config.json`); o `cwd` precisa ser a raiz do projeto:
+**Usar o servidor MCP no Claude Desktop ou no Claude Code.** O servidor fala por stdio e, sem `ASSISTENTE_BANCO`, usa o banco do ETL ou, se não houver, constrói o banco a partir do pacote Parquet local, se você o gerou. Sem dados, as ferramentas respondem `{erro, sugestao}` pedindo `baixar_dados.py` e `python -m src.etl`. Exemplo de configuração do Claude Desktop (`claude_desktop_config.json`); o `cwd` precisa ser a raiz do projeto:
 
 ```json
 {
@@ -387,27 +442,12 @@ venv\Scripts\python.exe -m src.documentacao                        # atualiza os
 
 As skills em `.claude/skills/` (`consultas-sql`, `analise-estatistica`, `qualidade-validacao`) ensinam o Claude a escolher a ferramenta certa e a interpretar os retornos.
 
-## 11. Publicação no Streamlit Community Cloud
-
-O repositório já traz o necessário: `app/app.py`, `requirements.txt` (só o que o app precisa, com versões travadas), `.streamlit/config.toml` e o pacote de dados em `data/processed/parquet/` (cerca de 18 MB, bem abaixo do limite de 100 MB por arquivo do GitHub).
-
-1. **Publique o repositório no GitHub** (público, para o plano gratuito do Streamlit), com `data/processed/parquet/` incluído. Os CSV originais e os bancos `.duckdb` não sobem (estão no `.gitignore`).
-2. Em [share.streamlit.io](https://share.streamlit.io), **New app**, escolha o repositório, o branch e o arquivo principal **`app/app.py`**.
-3. Em **Advanced settings**, escolha **Python 3.13** (as versões travadas foram conferidas para Linux em 3.12 e 3.13).
-4. **Secrets (opcional):** cole `GROQ_API_KEY = "..."` (modelo em `.streamlit/secrets.toml.example`). Sem isso, cada pessoa digita a própria chave no campo da barra lateral.
-5. Publique e coloque o endereço no topo deste README.
-
-**Comportamento esperado.** A primeira abertura de uma sessão fria carrega o pacote (cerca de 12 s) e calcula as quatro análises; medido localmente, cerca de 49 s no total, e depois fica em cache. Cada sessão que usa o chat abre um processo do servidor MCP (cerca de 240 MB, fechado após 20 minutos sem uso).
-
-**Atenção à memória.** O plano gratuito tem cerca de 1 GB. Medido localmente (Windows), uma sessão usa cerca de 350 MB no app e mais cerca de 240 MB com o chat aberto; **poucas sessões de chat simultâneas cabem**. A medição é indicativa, porque a nuvem é Linux. Se o app reiniciar por falta de memória, a saída é reduzir as sessões simultâneas ou usar um plano com mais memória.
-
-## 12. Estrutura de pastas
+## 11. Estrutura de pastas
 
 <!-- gerado:ESTRUTURA -->
 ```
 .claude/skills/           skills do Claude Desktop/Code: `consultas-sql`, `analise-estatistica`, `qualidade-validacao`
 app/                      app Streamlit (`app.py`): chat e abas de análise
-data/processed/parquet/   pacote de dados em Parquet (a base limpa, ~18 MB) que o app publicado carrega
 docs/                     guia do projeto, rotina de trabalho e a spec das ferramentas MCP (`spec_ferramentas_mcp.md`, fonte única das regras)
 eval/                     perguntas de negócio, de análise e maliciosas, cargas de ataque e o script de avaliação
 notebooks/                notebook narrado (com as saídas salvas), seu construtor, o texto-fonte e os PNG dos gráficos
@@ -423,7 +463,7 @@ CLAUDE.md                 memória do projeto: comandos e decisões registradas
 ```
 <!-- /gerado:ESTRUTURA -->
 
-## 13. Limitações
+## 12. Limitações
 
 **Do dataset**
 
@@ -440,16 +480,18 @@ CLAUDE.md                 memória do projeto: comandos e decisões registradas
 - **O horizonte de 52 semanas do CLV não tem backtest**, e o CLV não serve como previsão por cliente.
 - **A precisão por alerta do risco de pausa é modesta:** o modelo ordena bem os clientes (AUC), mas a maioria dos alertas não se confirma. Serve para priorizar, não para decidir sozinho.
 - **Desconto de loja (cartão) e de cupom estão somados** nas análises.
-- **Modelo de linguagem:** o chat depende de um modelo gratuito com limite de tokens por minuto; a taxa de acerto do modelo é medida pelo modo vivo da avaliação (seção 7), não pelo oráculo.
-- **Memória do plano gratuito** limita as sessões simultâneas de chat (seção 11).
+- **Modelo de linguagem:** o chat depende de um modelo gratuito com limite de tokens por minuto; a taxa de acerto do modelo é medida pelo modo vivo da avaliação (seção 7), não pelo oráculo, e varia entre rodadas.
+- **Memória:** cada sessão que usa o chat abre um processo do servidor MCP (cerca de 240 MB), então poucas sessões simultâneas cabem em uma máquina pequena.
+- **Limite do plano gratuito do Groq.** Esperas de 24 a 35 s numa pergunta vêm do limite de tokens por minuto; uma pergunta de 16 mil tokens ocupa o limite de dois minutos.
+- **Formato dos números.** O modelo às vezes escreve milhar com espaço ou misto; a régua tolera, mas o texto fica feio.
 
-## 14. Implementado e roadmap
+## 13. Implementado e roadmap
 
 | Item | Estado |
 |---|---|
 | ETL com limpeza documentada, reconciliação e relatório de qualidade | implementado |
 | Views de métricas com definição única e comparação com o ano anterior (like-for-like) | implementado |
-| Chat com glossário, SQL visível, contador de tokens e carga por upload, pasta ou pacote | implementado |
+| Chat com glossário, SQL visível, contador de tokens e carga por upload ou pasta | implementado |
 | Segmentação RFM com K-Means, estabilidade e coorte de apoio | implementado |
 | CLV por segmento com intervalo de confiança e backtest | implementado |
 | Risco de pausa com validação temporal e regra simples de comparação | implementado |
@@ -457,13 +499,20 @@ CLAUDE.md                 memória do projeto: comandos e decisões registradas
 | Servidor MCP, agente do app via MCP e skills | implementado |
 | Avaliação com perguntas maliciosas e cargas de ataque | implementado |
 | Notebook narrado com as saídas salvas | implementado |
-| Taxa de acerto do modelo no chat (modo vivo) | depende de uma chave do Groq: ver seção 7 |
+| Linha de base do chat ao vivo (20/28, reavaliada 23/28) e validação por item | implementado (seção 7) |
+| Aba Resumo com os destaques das quatro análises | implementado |
+| Rodada completa das 34 perguntas ao vivo, com tabela final | pendente (limite diário da Groq) |
+| App publicado (Streamlit Community Cloud) | roadmap: exige dados fora do Git |
+| Modo demonstração com dados sintéticos e aviso visível | roadmap (estimativa: 11 a 15 h) |
+| Ferramentas devolverem valores já formatados (milhar, moeda, %) | roadmap |
+| Colunas das tabelas de campanha e cupom no catálogo compacto | roadmap |
+| Reduzir a parte fixa do prompt (descrições mais curtas, `glossario_top_k`) | roadmap |
 | Desconto de loja separado do de cupom, por segmento | roadmap |
 | Análises em outras janelas, para checar a estabilidade dos segmentos e do risco | roadmap |
 | Margem real por categoria no CLV, se o varejista a fornecer | roadmap |
 | *Market Basket* (regras de associação entre produtos) | roadmap, como análise à parte |
 
-## 15. Fonte dos dados e termos de uso
+## 14. Fonte dos dados e termos de uso
 
-Os dados são do dataset **"The Complete Journey", da dunnhumby**, publicado no Kaggle (`frtgnn/dunnhumby-the-complete-journey`). Os CSV originais **não** estão neste repositório (`data/raw/` é ignorado pelo Git); o repositório traz o **pacote Parquet derivado**, com a base já limpa, para o app publicado funcionar.
+Os dados são do dataset **"The Complete Journey", da dunnhumby**, publicado no Kaggle (`frtgnn/dunnhumby-the-complete-journey`). Os CSV originais e qualquer derivado dos dados (banco, Parquet) **não** estão neste repositório: `data/` é ignorado pelo Git e o histórico não contém dados. Cada pessoa baixa o dataset do Kaggle pela própria conta.
 Consulte os termos de uso do dataset na página do Kaggle antes de redistribuir ou usar comercialmente os dados ou o pacote derivado.
