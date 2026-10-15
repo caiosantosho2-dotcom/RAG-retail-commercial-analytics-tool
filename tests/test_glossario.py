@@ -150,3 +150,11 @@ def test_termo_campanha_traz_a_receita_em_uma_consulta():
     achados = buscar_termos_relevantes(
         "Quantos households resgataram cupom da campanha 18 e quanto gastaram durante o período da campanha?")
     assert "campaign_desc" in achados and "BETWEEN START_DAY AND END_DAY" in achados
+
+
+def test_item7_loja_sempre_filtra_amostra_pequena_e_duckdb_nao_aceita_ilike_any():
+    from src import agente
+    from src.glossario_termos import GLOSSARIO as TERMOS
+    texto = " ".join(str(t) for t in TERMOS)
+    assert "(ou avise)" not in texto
+    assert "ILIKE ANY" in texto and "ILIKE ANY" in agente.INSTRUCOES_SISTEMA

@@ -66,11 +66,12 @@ _TERMOS_DE_METRICA = [
 _TERMOS_DE_VOCABULARIO = [
     ("Loja (também: unidade, filial, ponto de venda, store)",
      "Identificada por STORE_ID. Não existe vendedor individual: a loja é a menor unidade de equipe. "
-     "Os números por loja usam vw_metricas_loja_semana. Em rankings de lojas, filtre amostra_pequena = FALSE "
-     "(ou avise): lojas com poucas cestas distorcem médias como o ticket."),
+     "Os números por loja usam vw_metricas_loja_semana. Em rankings de lojas, filtre sempre "
+     "amostra_pequena = FALSE: lojas com poucas cestas distorcem médias como o ticket."),
     ("Categoria (também: seção, departamento, commodity, linha de produto, grupo)",
      "DEPARTMENT é o nível amplo (GROCERY, MEAT, PRODUCE, DRUG GM, DELI ...) e COMMODITY_DESC o nível de categoria "
-     "(SOFT DRINKS, CHEESE, FLUID MILK PRODUCTS ...). Filtre texto com ILIKE '%...%' para tolerar a escrita. "
+     "(SOFT DRINKS, CHEESE, FLUID MILK PRODUCTS ...). Filtre texto com ILIKE '%...%' para tolerar a escrita; "
+     "o DuckDB não aceita ILIKE ANY (ARRAY[...]): use OR entre ILIKE ou IN com os nomes exatos. "
      "Dados por loja e categoria: vw_metricas_loja_depto_semana."),
     ("Produto (também: item, SKU, artigo, ranking de produtos, mais vendidos)",
      "PRODUCT_ID, com COMMODITY_DESC, SUB_COMMODITY_DESC, BRAND e MANUFACTURER em dim_produto. Para rankings some "
