@@ -275,12 +275,19 @@ Tokens e tempo por pergunta (28 perguntas de negócio e análise):
 
 O tempo é reportado pela mediana de propósito: ele inclui a espera pelo limite de **8 mil tokens por minuto** do plano gratuito, que depende do que as perguntas anteriores já gastaram na janela de um minuto (a mesma pergunta de 12 mil tokens levou 5 s numa rodada e mais de 30 s em outra). A média sobe com poucas perguntas pesadas; a mediana mostra o caso típico. Na rodada final, a pergunta típica gastou cerca de 9 mil tokens e respondeu em cerca de 6 s.
 
-**O único erro: q06.** "Qual a loja com o maior ticket médio nas últimas 4 semanas?" O modelo respondeu a loja 720 (1 cesta, US$ 95,06) e avisou da amostra pequena, em vez de excluir as lojas com `amostra_pequena = TRUE`; a resposta esperada é a loja 408 (76 cestas, ticket de US$ 55,32). A causa é um "(ou avise)" no termo "Loja" do glossário, que contradiz a regra de que rankings de loja filtram a amostra pequena. A correção (item 7 do roadmap) foi aplicada **depois** da medição final, para que a rodada medisse uma versão só: o glossário agora manda sempre filtrar `amostra_pequena = FALSE` em rankings de loja. Os números desta seção são da versão **sem** a correção; a validação da correção (`--ids q05,q06`) é feita à parte.
+**O único erro: q06.** "Qual a loja com o maior ticket médio nas últimas 4 semanas?" O modelo respondeu a loja 720 (1 cesta, US$ 95,06) e avisou da amostra pequena, em vez de excluir as lojas com `amostra_pequena = TRUE`; a resposta esperada é a loja 408 (76 cestas, ticket de US$ 55,32). A causa é um "(ou avise)" no termo "Loja" do glossário, que contradiz a regra de que rankings de loja filtram a amostra pequena. A correção (item 7 do roadmap) foi aplicada **depois** da medição final, para que a rodada medisse uma versão só: o glossário agora manda sempre filtrar `amostra_pequena = FALSE` em rankings de loja. Os números desta seção são da versão **sem** a correção; a validação da correção está logo abaixo.
 
 **As duas perguntas mais caras.** Diagnóstico feito sem chamar o modelo, a partir das consultas gravadas:
 
 - **q05 (30 mil tokens, 111 s; seis chamadas ao modelo).** O modelo escreveu `COMMODITY_DESC ILIKE ANY (ARRAY[...])`, que o DuckDB recusa (`Unsupported comparison "~~*" for ANY/ALL subquery`); reescreveu com `IN`, acertou (US$ 850,82) e ainda conferiu a amostra com mais consultas. A causa é o glossário não dizer que `ILIKE ANY` não existe no DuckDB; a correção, também posterior à medição final, está no glossário e no prompt (usar `OR` entre `ILIKE` ou `IN`).
 - **q18 (35 mil tokens, 149 s; sete chamadas ao modelo).** A primeira consulta já devolvia a resposta certa (105 lojas, por `vw_metricas_loja_semana` menos `vw_lojas_like_for_like`). O modelo então chamou `descrever_dados` e fez quatro consultas de uma coluna cada em `vw_yoy_resumo` (`lojas_so_atual`, `lojas_atual`, `lojas_like_for_like`, e uma combinada) para conferir. Como cada chamada reenvia o prompt fixo (cerca de 2,9 mil tokens) e o histórico, o custo é multiplicado por sete, e a espera pelo limite por minuto levou o tempo a 149 s. Não é erro de resposta: é conferência redundante, e a pergunta tem a resposta direta em `vw_yoy_resumo.lojas_so_atual`. Nenhuma correção foi aplicada para ela; fica registrada junto com a redução da parte fixa do prompt no roadmap.
+
+**Validação do item 7 (15/10/2026, `--ids q05,q06`; relatório em `eval/resultados/VIVO_validacao_item7.md`).** Duas perguntas, uma rodada cada:
+
+- **q06: corrigida.** Respondeu a loja 408 (a esperada), com 8,6 mil tokens e 3,2 s.
+- **q05: correta, mas ainda com uma consulta recusada.** Acertou o valor, com 17 mil tokens e 75 s (eram 30 mil tokens e 111 s na rodada final), mas o modelo ainda escreveu `COMMODITY_DESC ILIKE ANY (ARRAY[...])` na segunda consulta e recebeu `Parser Error: Unsupported comparison "~~*" for ANY/ALL subquery`; a terceira consulta, com `IN`, trouxe o valor. O aviso no glossário e no prompt reduziu o custo da pergunta (menos passos), mas não impediu o erro.
+
+Duas perguntas em uma rodada cada não bastam para afirmar mais que isso. Nada mais foi corrigido por enquanto.
 
 **Oscilações.** A a02 acertou 1 vez em 3 rodadas antes da correção e só foi dada como corrigida depois de 2 acertos seguidos; a q16 entrava em loop de consultas e passou a devolver resposta parcial com o que cada consulta retornou. A rodada final é uma rodada, não prova de estabilidade: o modelo oscila entre execuções, então compare médias e medianas, não perguntas isoladas.
 
@@ -539,7 +546,8 @@ CLAUDE.md                 memória do projeto: comandos e decisões registradas
 | Linha de base do chat ao vivo (20/28, reavaliada 23/28), validação por item e rodada final (27/28) | implementado (seção 7) |
 | Aba Resumo com os destaques das quatro análises | implementado |
 | Rodada completa das 34 perguntas ao vivo, com tabela final | implementado (seção 7; 27/28 e 6/6) |
-| Item 7, posterior à medição final: rankings de loja sempre filtram `amostra_pequena = FALSE` (tirar o "(ou avise)" do glossário) e o glossário/prompt diz que o DuckDB não aceita `ILIKE ANY (ARRAY[...])` (usar `OR` entre `ILIKE` ou `IN`) | aplicado depois da medição final; validar com `--ids q05,q06` |
+| Item 7, posterior à medição final: rankings de loja sempre filtram `amostra_pequena = FALSE` (tirar o "(ou avise)" do glossário) e o glossário/prompt diz que o DuckDB não aceita `ILIKE ANY (ARRAY[...])` (usar `OR` entre `ILIKE` ou `IN`) | aplicado depois da medição final; validado: q06 corrigida, q05 correta com 1 consulta ainda recusada (`ILIKE ANY`) |
+| Próximo passo (da validação do item 7): a q05 ainda envia `ILIKE ANY` uma vez; opções: erro orientador na própria consulta (como já existe para ferramenta chamada como SQL) ou repetir a rodada para medir a oscilação; depois, a conferência redundante da q18 | roadmap, aguardando decisão |
 | App publicado (Streamlit Community Cloud) | roadmap: exige dados fora do Git |
 | Modo demonstração com dados sintéticos e aviso visível | roadmap (estimativa: 11 a 15 h) |
 | Ferramentas devolverem valores já formatados (milhar, moeda, %) | roadmap |
