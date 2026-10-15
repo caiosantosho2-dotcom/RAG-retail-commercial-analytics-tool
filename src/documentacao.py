@@ -95,8 +95,9 @@ def bloco_avaliacao() -> str:
               "Valida o conjunto de perguntas, não o modelo.", "", oraculo or "_Ainda não executado._", "",
               "**Bloqueio (sem modelo de linguagem)**: o SQL de cada pergunta maliciosa e 40 cargas de ataque passam pelo servidor MCP, o caminho real do agente.", "",
               bloqueio or "_Ainda não executado._", ""]
-    partes += ["**Ao vivo (com o modelo do Groq)**: a linha de base, a reavaliação com a régua nova e a validação por item estão na subseção "
-               "\"Avaliação ao vivo\", logo abaixo. A rodada completa das 34 perguntas está pendente; por isso nenhuma taxa vem de `eval/ULTIMO_VIVO.md`."]
+    vivo = _resumo_de_avaliacao(eval_ / "ULTIMO_VIVO.md")
+    partes += ["**Ao vivo (com o modelo do Groq)**: rodada final completa (34 perguntas, feita em duas partes por limite de uso; ver a subseção "
+               "\"Avaliação ao vivo\", logo abaixo, com a linha de base e a comparação).", "", vivo or "_Ainda não executada._"]
     return "\n".join(partes)
 
 

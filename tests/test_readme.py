@@ -69,9 +69,10 @@ def test_readme_e_app_nao_citam_versao_anterior_nem_saida_de_emprego():
         assert not achados, (nome, achados)
 
 
-def test_readme_afirma_so_a_linha_de_base_e_diz_que_a_rodada_completa_esta_pendente():
-    assert "20 de 28 (71%)" in README and "23 de 28 (82%)" in README and "está pendente" in README
-    assert "nenhuma taxa vem de `eval/ULTIMO_VIVO.md`" in README
+def test_readme_traz_a_rodada_final_completa_e_nao_diz_que_esta_pendente():
+    assert "20 de 28 (71%)" in README and "23 de 28 (82%)" in README and "27/28 (96%)" in README
+    assert "em duas partes por limite de uso" in README and "q06" in README and "está pendente" not in README
+    assert "nenhuma taxa vem de `eval/ULTIMO_VIVO.md`" not in README
 
 
 def test_readme_nao_promete_app_publicado_nem_dados_no_repositorio():

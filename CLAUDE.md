@@ -140,7 +140,7 @@ venv\Scripts\python.exe -m eval.rodar_avaliacao --modo vivo      # com o agente:
 
 Chave do Groq: variável `GROQ_API_KEY` (avaliação), `st.secrets["GROQ_API_KEY"]` (deploy) ou o campo da barra lateral.
 
-(Avaliação viva: modelo `openai/gpt-oss-120b`; `--ids q01,a02` roda só essas perguntas e `python -m eval.reavaliar` recalcula uma rodada salva sem chamar o modelo. A rodada completa das 34 está pendente pelo limite diário da Groq. `python -m eval.medir_prompt` mede a composição do prompt.)
+(Avaliação viva: modelo `openai/gpt-oss-120b`; `--ids q01,a02` roda só essas perguntas e `python -m eval.reavaliar` recalcula uma rodada salva sem chamar o modelo. A rodada completa das 34 (feita em duas partes por limite de uso) deu 27/28 e 6/6; relatório em `eval/resultados/VIVO_final_completa.md`. `python -m eval.medir_prompt` mede a composição do prompt.)
 
 ## Decisões registradas
 
@@ -412,3 +412,10 @@ Chave do Groq: variável `GROQ_API_KEY` (avaliação), `st.secrets["GROQ_API_KEY
   fechado; `md()` escapa `$` em todas as abas. Formato registrado em `docs/spec_ferramentas_mcp.md`.
 - 2026-10-13 — Composição do prompt (medição, sem otimizar): fixo ~2,9 mil tokens (instruções 32%, catálogo 41%, ferramentas 28%); pergunta típica
   com 4 consultas ~17 mil; média observada nas rodadas vivas 12,3 mil (mín. 3,3 mil, máx. 32,3 mil, n=50). Redução da parte fixa fica no roadmap (`eval/MEDICAO_PROMPT.md`).
+- 2026-10-15 — Item 7 (posterior à medição final; decidido, NÃO aplicado): (a) tirar o "(ou avise)" do termo "Loja" em `src/glossario_termos.py`, para rankings
+  de loja sempre filtrarem `amostra_pequena = FALSE` (a q06 respondeu a loja 720, 1 cesta, em vez da 408, 76 cestas); (b) acrescentar ao glossário/prompt que o
+  DuckDB não aceita `ILIKE ANY (ARRAY[...])` (usar `OR` entre `ILIKE` ou `IN`; a q05 gastou 30 mil tokens por causa desse erro). Motivo de esperar: a rodada completa
+  das 34 perguntas (parte 2) roda com o código como está, para medir uma versão só. Depois da rodada: aplicar, validar com `--ids q05,q06` e registrar.
+  Parte 1 (q01-q15) contra a linha de base reavaliada: acerto 15/15 para 14/15; mediana de tokens 11,6 mil para 8,8 mil; mediana de tempo 14 s para 5 s (o
+  tempo inclui a espera pelo limite de 8 mil tokens/min: reportar mediana).
+- 2026-10-15 — Rodada final completa (mesmo código e modelo, duas partes por limite de uso): 27/28 (96%) contra 23/28 reavaliada e 20/28 medida; negócio 19/20, análise 8/8 (era 4/8), maliciosas 6/6, ataques 46/46. Tokens: média 11,5 mil, mediana 9,3 mil; tempo: média 20 s, mediana 6 s. Único erro: q06. Custo alto: q05 (ILIKE ANY recusado) e q18 (conferência redundante, 7 chamadas, sem correção).

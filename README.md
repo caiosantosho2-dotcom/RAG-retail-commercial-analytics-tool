@@ -216,7 +216,15 @@ Cada métrica é definida **uma vez**, como view no DuckDB, e a definição de n
 - Consultas legítimas bloqueadas por engano: **0** de 4
 - Integridade das tabelas depois dos ataques: **ok, mesmas linhas**
 
-**Ao vivo (com o modelo do Groq)**: a linha de base, a reavaliação com a régua nova e a validação por item estão na subseção "Avaliação ao vivo", logo abaixo. A rodada completa das 34 perguntas está pendente; por isso nenhuma taxa vem de `eval/ULTIMO_VIVO.md`.
+**Ao vivo (com o modelo do Groq)**: rodada final completa (34 perguntas, feita em duas partes por limite de uso; ver a subseção "Avaliação ao vivo", logo abaixo, com a linha de base e a comparação).
+
+- Data: 2026-10-15 13:13 · base `ddb4d8032cc2` · modelo `openai/gpt-oss-120b`
+- Feita em duas partes por limite de uso (q01-q15; q16-q20, a01-a08, m01-m06) e consolidada sem chamar o modelo (`eval/reavaliar.py`).
+- Taxa de acerto (número esperado na resposta): **96%** de 28 (negócio 95%, análise 100%)
+- Número esperado apareceu no resultado da consulta: 64%
+- Ferramenta certa: 100% (análise: 100%) · recuperação do glossário: 100%
+- Tokens médios por pergunta: 11477 · tempo médio: 20.2 s · consultas com erro: 1
+- Perguntas maliciosas bloqueadas: **100%** de 6 (meta: 100%) · integridade das tabelas: ok
 <!-- /gerado:AVALIACAO -->
 
 A avaliação roda em três modos (`--modo oraculo`, `--modo bloqueio`, `--modo vivo`) e deve ser repetida sempre que o prompt, o glossário, as views, as descrições das ferramentas ou as skills mudarem.
@@ -245,7 +253,36 @@ A avaliação roda em três modos (`--modo oraculo`, `--modo bloqueio`, `--modo 
 | a04 | erro | 3.338 | 2 | ok (régua nova) | 9.314 | 11 |
 | a08 | erro | 11.893 | 34 | ok | 11.174 | 26 |
 
-**Oscilações.** A a02 acertou 1 vez em 3 rodadas antes da correção e só foi dada como corrigida depois de 2 acertos seguidos; a q16 entrava em loop de consultas e passou a devolver resposta parcial com o que cada consulta retornou. Uma rodada por item não é prova. A **rodada completa das 34 perguntas, com a tabela final e as médias, está pendente** (limite diário de tokens da Groq). Até lá, este README afirma só a linha de base, a reavaliação e a validação por item acima.
+**Rodada final completa (15/10/2026).** Depois das correções acima, as 34 perguntas rodaram com o mesmo código e o mesmo modelo (`openai/gpt-oss-120b`). A rodada foi feita **em duas partes por limite de uso** da Groq: a parte 1 (q01 a q15) e a parte 2 (q16 a q20, a01 a a08 e m01 a m06). Os relatórios de cada parte e o consolidado estão em `eval/resultados/` (`VIVO_final_parte1.md`, `VIVO_final_parte2.md` e `VIVO_final_completa.md`, com uma linha por pergunta); o consolidado foi montado com `eval/reavaliar.py`, sem chamar o modelo de novo.
+
+| | linha de base medida (08 e 09/10) | linha de base reavaliada (régua nova) | rodada final |
+|---|---:|---:|---:|
+| Negócio (20) | - | 19/20 | **19/20** |
+| Análise (8) | - | 4/8 | **8/8** |
+| **Total (28)** | 20/28 (71%) | 23/28 (82%) | **27/28 (96%)** |
+| Maliciosas (6) | 5/6 | 6/6 | **6/6** |
+| Ataques pelo MCP (40 cargas + 6 perguntas) | 46/46 | 46/46 | 46/46 |
+
+Tokens e tempo por pergunta (28 perguntas de negócio e análise):
+
+| | linha de base reavaliada | rodada final |
+|---|---:|---:|
+| Tokens, média | 11,6 mil | 11,5 mil |
+| Tokens, **mediana** | 10,4 mil | **9,3 mil** |
+| Tempo, média | 19,3 s | 20,2 s |
+| Tempo, **mediana** | 11,5 s | **5,9 s** |
+| Maior pergunta | 29,2 mil tokens, 106 s | 35,2 mil tokens, 149 s |
+
+O tempo é reportado pela mediana de propósito: ele inclui a espera pelo limite de **8 mil tokens por minuto** do plano gratuito, que depende do que as perguntas anteriores já gastaram na janela de um minuto (a mesma pergunta de 12 mil tokens levou 5 s numa rodada e mais de 30 s em outra). A média sobe com poucas perguntas pesadas; a mediana mostra o caso típico. Na rodada final, a pergunta típica gastou cerca de 9 mil tokens e respondeu em cerca de 6 s.
+
+**O único erro: q06.** "Qual a loja com o maior ticket médio nas últimas 4 semanas?" O modelo respondeu a loja 720 (1 cesta, US$ 95,06) e avisou da amostra pequena, em vez de excluir as lojas com `amostra_pequena = TRUE`; a resposta esperada é a loja 408 (76 cestas, ticket de US$ 55,32). A causa é um "(ou avise)" no termo "Loja" do glossário, que contradiz a regra de que rankings de loja filtram a amostra pequena. A correção está definida (item 7 do roadmap) e foi aplicada **depois** da medição final, para que a rodada medisse uma versão só.
+
+**As duas perguntas mais caras.** Diagnóstico feito sem chamar o modelo, a partir das consultas gravadas:
+
+- **q05 (30 mil tokens, 111 s; seis chamadas ao modelo).** O modelo escreveu `COMMODITY_DESC ILIKE ANY (ARRAY[...])`, que o DuckDB recusa (`Unsupported comparison "~~*" for ANY/ALL subquery`); reescreveu com `IN`, acertou (US$ 850,82) e ainda conferiu a amostra com mais consultas. A causa é o glossário não dizer que `ILIKE ANY` não existe no DuckDB; a correção é o segundo ponto do item 7.
+- **q18 (35 mil tokens, 149 s; sete chamadas ao modelo).** A primeira consulta já devolvia a resposta certa (105 lojas, por `vw_metricas_loja_semana` menos `vw_lojas_like_for_like`). O modelo então chamou `descrever_dados` e fez quatro consultas de uma coluna cada em `vw_yoy_resumo` (`lojas_so_atual`, `lojas_atual`, `lojas_like_for_like`, e uma combinada) para conferir. Como cada chamada reenvia o prompt fixo (cerca de 2,9 mil tokens) e o histórico, o custo é multiplicado por sete, e a espera pelo limite por minuto levou o tempo a 149 s. Não é erro de resposta: é conferência redundante, e a pergunta tem a resposta direta em `vw_yoy_resumo.lojas_so_atual`. Nenhuma correção foi aplicada para ela; fica registrada junto com a redução da parte fixa do prompt no roadmap.
+
+**Oscilações.** A a02 acertou 1 vez em 3 rodadas antes da correção e só foi dada como corrigida depois de 2 acertos seguidos; a q16 entrava em loop de consultas e passou a devolver resposta parcial com o que cada consulta retornou. A rodada final é uma rodada, não prova de estabilidade: o modelo oscila entre execuções, então compare médias e medianas, não perguntas isoladas.
 
 ### O que a avaliação revelou
 
@@ -499,9 +536,10 @@ CLAUDE.md                 memória do projeto: comandos e decisões registradas
 | Servidor MCP, agente do app via MCP e skills | implementado |
 | Avaliação com perguntas maliciosas e cargas de ataque | implementado |
 | Notebook narrado com as saídas salvas | implementado |
-| Linha de base do chat ao vivo (20/28, reavaliada 23/28) e validação por item | implementado (seção 7) |
+| Linha de base do chat ao vivo (20/28, reavaliada 23/28), validação por item e rodada final (27/28) | implementado (seção 7) |
 | Aba Resumo com os destaques das quatro análises | implementado |
-| Rodada completa das 34 perguntas ao vivo, com tabela final | pendente (limite diário da Groq) |
+| Rodada completa das 34 perguntas ao vivo, com tabela final | implementado (seção 7; 27/28 e 6/6) |
+| Item 7, posterior à medição final: rankings de loja sempre filtram `amostra_pequena = FALSE` (tirar o "(ou avise)" do glossário) e o glossário/prompt diz que o DuckDB não aceita `ILIKE ANY (ARRAY[...])` (usar `OR` entre `ILIKE` ou `IN`) | aplicado depois da medição final; validar com `--ids q05,q06` |
 | App publicado (Streamlit Community Cloud) | roadmap: exige dados fora do Git |
 | Modo demonstração com dados sintéticos e aviso visível | roadmap (estimativa: 11 a 15 h) |
 | Ferramentas devolverem valores já formatados (milhar, moeda, %) | roadmap |
