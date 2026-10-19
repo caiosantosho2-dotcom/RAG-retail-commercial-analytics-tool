@@ -19,7 +19,6 @@ def md(texto: str) -> str:
 
 def bloco_e_dai(e_dai: dict) -> None:
     """Conclusão curta em destaque, a evidência em texto normal, ação, impacto e limitações; a estatística fica no expander."""
-    st.subheader("E daí?")
     with st.container(border=True):
         st.markdown(md(f"### {e_dai['conclusao']}"))
         st.markdown(md(e_dai["evidencia"]))

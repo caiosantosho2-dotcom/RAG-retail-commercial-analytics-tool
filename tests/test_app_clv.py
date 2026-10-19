@@ -46,9 +46,9 @@ def test_a_aba_abre_sem_erro_na_quarta_posicao_do_menu(tela_real):
 @precisa_do_banco
 def test_o_e_dai_e_o_primeiro_elemento_antes_de_qualquer_grafico(tela_real):
     elementos = filhos(tela_real.tabs[3])
-    assert type(elementos[0]).__name__ == "Subheader" and elementos[0].value == "E daí?"
+    assert not any(type(e).__name__ == "Subheader" and e.value == "E daí?" for e in elementos)   # sem subtítulo: o card abre a aba
     tipos = [getattr(e, "type", "") for e in elementos]
-    assert tipos.count("vega_lite_chart") == 3 and tipos.index("vega_lite_chart") > 1
+    assert tipos.count("vega_lite_chart") == 3 and tipos.index("vega_lite_chart") > 0
 
 
 @precisa_do_banco

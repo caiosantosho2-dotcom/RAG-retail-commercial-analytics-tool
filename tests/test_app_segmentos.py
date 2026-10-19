@@ -51,10 +51,10 @@ def test_a_aba_abre_sem_erro_com_tres_abas_e_o_chat_primeiro(tela_real):
 @precisa_do_banco
 def test_o_e_dai_e_o_primeiro_elemento_da_aba_antes_de_qualquer_grafico(tela_real):
     elementos = filhos(tela_real.tabs[2])
-    assert type(elementos[0]).__name__ == "Subheader" and elementos[0].value == "E daí?"
+    assert not any(type(e).__name__ == "Subheader" and e.value == "E daí?" for e in elementos)   # sem subtítulo: o card abre a aba
     tipos = [getattr(e, "type", "") for e in elementos]
     assert "vega_lite_chart" in tipos
-    assert tipos.index("vega_lite_chart") > 1            # depois do subtítulo e do bloco com a conclusão
+    assert tipos.index("vega_lite_chart") > 0            # depois do card com a conclusão
 
 
 @precisa_do_banco
