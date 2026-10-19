@@ -134,12 +134,12 @@ def test_quatro_graficos_com_o_titulo_conclusao_das_abas_de_origem(tela_real):
 
 
 @precisa_do_banco
-def test_cada_bloco_traz_uma_frase_e_dai_da_acao_recomendada(tela_real):
+def test_cada_bloco_traz_a_frase_da_acao_recomendada_sem_rotulo(tela_real):
     banco.definir_banco(BANCO)
     textos = " ".join(m.value for m in tela_real.tabs[0].markdown)
     for r in (segmentar_clientes(), calcular_clv(), prever_churn(), teste_desconto.testar_desconto_entre_segmentos()):
         assert primeira_frase(r["e_dai"]["acao_recomendada"]) in textos
-    assert textos.count("**E daí?**") == 4
+    assert "E daí?" not in textos                  # sem rótulo: só a frase da ação
 
 
 def test_sem_dados_o_resumo_pede_para_carregar(monkeypatch):

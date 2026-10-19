@@ -81,7 +81,7 @@ def _bloco(coluna, titulo: str, grafico, e_dai: dict) -> None:
     with coluna:
         st.markdown(f"**{titulo}**")
         st.altair_chart(_titulo_em_linhas(grafico), theme=None, width="stretch")
-        st.markdown(_md(f"**E daí?** {primeira_frase(e_dai['acao_recomendada'])}"))
+        st.markdown(_md(primeira_frase(e_dai['acao_recomendada'])))
 
 
 def _erro(coluna, titulo: str, r: dict) -> None:
