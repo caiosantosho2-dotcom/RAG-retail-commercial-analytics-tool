@@ -7,7 +7,7 @@ Ferramenta para a área comercial de varejo. O usuário exporta uma planilha do 
 
 Os dados são o dataset público **Dunnhumby "The Complete Journey"** (2.500 households, cerca de dois anos de compras, mais de 500 lojas). O mesmo núcleo de funções atende o app (Streamlit, com um agente do Groq) e o Claude Desktop/Code (por um servidor MCP, com skills).
 
-- **Vídeo de demonstração:** _link a preencher._
+- **Demonstração em vídeo:** no post de lançamento no meu LinkedIn (link abaixo): [LINK_DO_POST]
 - **Escopo:** estudo de caso para rodar localmente. Os dados da dunnhumby não estão no repositório (seção 4); o app publicado e o modo demonstração com dados sintéticos estão no roadmap (seção 13).
 - **Notebook narrado, com as saídas salvas:** [`notebooks/analise_clientes_dunnhumby.ipynb`](notebooks/analise_clientes_dunnhumby.ipynb)
 

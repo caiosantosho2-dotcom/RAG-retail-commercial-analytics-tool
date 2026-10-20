@@ -12,7 +12,7 @@ __pycache__/
 
 # Dados
 # Dados brutos do Dunnhumby ficam fora do Git (baixados via baixar_dados.py).
-# O recorte em Parquet de data/processed/ É versionado para o app publicado funcionar.
+# Nenhum dado (CSV, Parquet, banco) vai para o repositório.
 data/raw/
 *.duckdb
 *.duckdb.wal
@@ -32,3 +32,8 @@ eval/resultados/*.json
 data/
 *.duckdb
 *.parquet
+
+# Vídeos de demonstração
+video/
+*.mp4
+*.webm

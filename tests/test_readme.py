@@ -78,7 +78,7 @@ def test_readme_traz_a_rodada_final_completa_e_nao_diz_que_esta_pendente():
 def test_readme_nao_promete_app_publicado_nem_dados_no_repositorio():
     for proibido in ("versionado no repositório", "Parquet do repositório", "Publicação no Streamlit", "set GROQ_API_KEY"):
         assert proibido not in README, proibido
-    assert "O repositório não contém dados da dunnhumby" in README and "Vídeo de demonstração" in README
+    assert "O repositório não contém dados da dunnhumby" in README and "Demonstração em vídeo" in README
 
 
 def test_numeros_fixos_do_texto_batem_com_o_config():
